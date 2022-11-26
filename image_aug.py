@@ -2,7 +2,7 @@ import os
 from tensorflow.keras.utils import img_to_array, save_img, load_img # type: ignore
 import tensorflow as tf
 import random 
-
+#hey
 RAW_IMAGES = '/Users/sakib/Desktop/excercises/raw'
 POSTAUGMENTATION_PATH = '/Users/sakib/Desktop/excercises/postprocessing_excercises'
 #loop through folders in directory
