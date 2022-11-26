@@ -1,4 +1,6 @@
 import csv
+import os 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import cv2
 import itertools
 import numpy as np
@@ -123,8 +125,8 @@ def plot_confusion_matrix(cm, classes,
   plt.close()  
 IMAGES_ROOT = 'images/processed'  
 excercise = 'squat'
-# create_features('squat', 'train')
-# create_features('squat', 'test')
+create_features('squat', 'train')
+create_features('squat', 'test')
 # create_features('squat', 'practice')
 
 
@@ -152,3 +154,6 @@ plot_confusion_matrix(cm,
 
 
 #Applying it on new data
+# X_p_test, y_p_test, _, df_test = load_pose_landmarks(csv_file)
+# loss, accuracy = model.evaluate(X_p_test, y_p_test)
+
