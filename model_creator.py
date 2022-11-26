@@ -5,6 +5,9 @@ import cv2
 import itertools
 import numpy as np
 import pandas as pd
+from matplotlib import font_manager
+import imageio
+
 import os
 import sys
 import tempfile
@@ -21,6 +24,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from helpers.movenet_processor import MoveNetPreprocessor 
 from helpers.landmarks import load_pose_landmarks, landmarks_to_embedding
+import io
+from PIL import Image, ImageDraw, ImageSequence,ImageFont
+
 def create_features(excercise: str, dataset_type: str):
     """Creates a model for a given excercise.
 
@@ -30,7 +36,7 @@ def create_features(excercise: str, dataset_type: str):
     Returns:
         A compiled model.
     """
-
+    
     images_in_train_folder = os.path.join(IMAGES_ROOT, excercise, dataset_type)
     images_out_train_folder = f'poses_images_out_{dataset_type}_{excercise}'
     csvs_out_train_path = f'{dataset_type}_{excercise}.csv'
@@ -157,22 +163,60 @@ if mode =='create_model':
                         class_names,
                             excercise,
                             'test')
+def generated_graded_video(predictions):
+    '''
+    Generates a graded video
+    '''
+    #create font to be black
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    fontScale = 1
+    fontColor = (0,0,0)
+    lineType = 2
 
+    font = font_manager.FontProperties(family='sans-serif', weight='bold')
+    file = font_manager.findfont(font)
+    font = ImageFont.truetype(file, 48)
+
+    images = os.listdir('images/processed/squat/unseen/unknown')
+    # Loop over each frame in the animated image
+    index = 0 
+    frames = []
+    for image in images:
+        print(index)
+        #add text to the image in the rop right coner saying the class name
+        img = Image.open('images/processed/squat/unseen/unknown/'+image)
+        prediction = predictions[index]
+        if prediction
+        value_text = f'{'
+        draw = ImageDraw.Draw(img)
+        draw.text((img.width - 500, 0), class_names[index], (255, 0, 0), font=font)
+        frames.append(img)
+        index += 1
+        if index>10:
+            break
+    # Save the frames as an animated gif
+    frames[0].save('squat_2.gif', format='GIF', save_all=True, append_images=frames[1:])
+    print('saved gif')
+mode = 'generate_video'
 if mode =='run_on_new_data':
     #Applying it on new data
     model= keras.models.load_model(f'{excercise}_model.h5')
     print('APPLYING ON NEW DATA')
-    create_features('squat', 'practice')
-    csv_file = f'practice_{excercise}.csv'
+    # create_features('squat', 'unseen')
+    csv_file = f'unseen_{excercise}.csv'
     X_p_test, y_p_test, class_names, df_test = load_pose_landmarks(csv_file)
-    loss, accuracy = model.evaluate(X_p_test, y_p_test)
-    y_pred = model.predict(X_p_test)
-    create_features('squat', 'practice')
+    predictions = model.predict(X_p_test)
+    best_value = np.max(predictions)
+    class_labels = np.argmax(predictions, axis=1)
+    class_names = ['start' if value==0 else 'end' for value in class_labels]
+    #save to json file
+    import json
+    #save best_value as array
+    np.save( 'best.npy',best_value)
+    #save class names to json file
+    
 
-    y_pred_label = [class_names[i] for i in np.argmax(y_pred, axis=1)]
-    y_true_label = [class_names[i] for i in np.argmax(y_p_test, axis=1)]
-    cm = confusion_matrix(np.argmax(y_p_test, axis=1), np.argmax(y_pred, axis=1))
-    plot_confusion_matrix(cm,
-                        class_names,
-                            excercise,
-                            'practice')
+if mode =='generate_video':
+    import json
+    predictions = np.load('best.npy')
+    generated_graded_video(predictions)
