@@ -95,6 +95,7 @@ def create_plot(excercise:str, history ):
 
 def plot_confusion_matrix(cm, classes,
                             excercise,          
+                            dataset_type,
                           normalize=False,
                           cmap=plt.cm.Blues,
                           ):
@@ -104,7 +105,7 @@ def plot_confusion_matrix(cm, classes,
     print("Normalized confusion matrix")
   else:
     print('Confusion matrix, without normalization')
-  title = f'Confusion matrix for {excercise}'
+  title = f'Confusion matrix for {excercise} {dataset_type}'
   plt.imshow(cm, interpolation='nearest', cmap=cmap)
   plt.title(title)
   plt.colorbar()
@@ -121,39 +122,57 @@ def plot_confusion_matrix(cm, classes,
   plt.ylabel('True label')
   plt.xlabel('Predicted label')
   plt.tight_layout()
-  plt.savefig(f'{excercise}_cm.png')
+  plt.savefig(f'{excercise}_{dataset_type}_cm.png')
   plt.close()  
 IMAGES_ROOT = 'images/processed'  
+
+mode = 'create_model'
+mode = 'run_on_new_data'
 excercise = 'squat'
-create_features('squat', 'train')
-create_features('squat', 'test')
-# create_features('squat', 'practice')
+if mode =='create_model':
+    create_features('squat', 'train')
+    create_features('squat', 'test')
 
 
-csv_file = f'train_{excercise}.csv'
-X, y, class_names, _ = load_pose_landmarks(csv_file)
-X_train, X_val, y_train, y_val = train_test_split(X, y,
-                                                test_size=0.15)
-csv_file = f'test_{excercise}.csv'                                          
-X_test, y_test, _, df_test = load_pose_landmarks(csv_file)
+    csv_file = f'train_{excercise}.csv'
+    X, y, class_names, _ = load_pose_landmarks(csv_file)
+    X_train, X_val, y_train, y_val = train_test_split(X, y,
+                                                    test_size=0.15)
+    csv_file = f'test_{excercise}.csv'                                          
+    X_test, y_test, _, df_test = load_pose_landmarks(csv_file)
 
-model = create_model(class_names)
-history = run_model(X_train, y_train, X_val, y_val)
-create_plot(excercise, history)
-y_pred = model.predict(X_test)
+    model = create_model(class_names)
+    model.save(f'{excercise}_model.h5')
+    history = run_model(X_train, y_train, X_val, y_val)
+    create_plot(excercise, history)
+    y_pred = model.predict(X_test)
 
-# Convert the prediction result to class name
-y_pred_label = [class_names[i] for i in np.argmax(y_pred, axis=1)]
-y_true_label = [class_names[i] for i in np.argmax(y_test, axis=1)]
+    # Convert the prediction result to cla#ss name
+    y_pred_label = [class_names[i] for i in np.argmax(y_pred, axis=1)]
+    y_true_label = [class_names[i] for i in np.argmax(y_test, axis=1)]
 
-# Plot the confusion matrix
-cm = confusion_matrix(np.argmax(y_test, axis=1), np.argmax(y_pred, axis=1))
-plot_confusion_matrix(cm,
-                      class_names,
-                        excercise)
+    # Plot the confusion matrix
+    cm = confusion_matrix(np.argmax(y_test, axis=1), np.argmax(y_pred, axis=1))
+    plot_confusion_matrix(cm,
+                        class_names,
+                            excercise,
+                            'test')
 
+if mode =='run_on_new_data':
+    #Applying it on new data
+    model= keras.models.load_model(f'{excercise}_model.h5')
+    print('APPLYING ON NEW DATA')
+    create_features('squat', 'practice')
+    csv_file = f'practice_{excercise}.csv'
+    X_p_test, y_p_test, class_names, df_test = load_pose_landmarks(csv_file)
+    loss, accuracy = model.evaluate(X_p_test, y_p_test)
+    y_pred = model.predict(X_p_test)
+    create_features('squat', 'practice')
 
-#Applying it on new data
-# X_p_test, y_p_test, _, df_test = load_pose_landmarks(csv_file)
-# loss, accuracy = model.evaluate(X_p_test, y_p_test)
-
+    y_pred_label = [class_names[i] for i in np.argmax(y_pred, axis=1)]
+    y_true_label = [class_names[i] for i in np.argmax(y_p_test, axis=1)]
+    cm = confusion_matrix(np.argmax(y_p_test, axis=1), np.argmax(y_pred, axis=1))
+    plot_confusion_matrix(cm,
+                        class_names,
+                            excercise,
+                            'practice')
