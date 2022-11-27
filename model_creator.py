@@ -23,7 +23,6 @@ from tensorflow import keras
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from helpers.movenet_processor import MoveNetPreprocessor 
 from helpers.landmarks import load_pose_landmarks, landmarks_to_embedding
 import io
 from PIL import Image, ImageDraw, ImageSequence,ImageFont
@@ -84,7 +83,7 @@ def generate_features(image):
     min_landmark_score = min(
         [keypoint.score for keypoint in person.keypoints])
     if min_landmark_score <=.03:
-        print("fSkipping {image_path} has a low score of {min_landmark_score}")
+        print(f"Skipping  has a low score of {min_landmark_score}")
         return []
     pose_landmarks = np.array(
         [[keypoint.coordinate.x, keypoint.coordinate.y, keypoint.score]
@@ -178,7 +177,7 @@ def plot_confusion_matrix(cm, classes,
   plt.close()  
 IMAGES_ROOT = 'images/processed'  
 
-mode = 'create_model'
+mode = 'generate_video'
 excercise = 'squat'
 def split_data(df):
     df.drop(columns=['class_name'], inplace =True)
@@ -227,56 +226,59 @@ def generated_graded_video(predictions):
     '''
     Generates a graded video
     '''
-    #create font to be black
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    fontScale = 1
-    fontColor = (0,0,0)
-    lineType = 2
-
+    #create font to be bla
     font = font_manager.FontProperties(family='sans-serif', weight='bold')
     file = font_manager.findfont(font)
     font = ImageFont.truetype(file, 48)
 
-    images = os.listdir('images/processed/squat/unseen/unknown')
+    images = os.listdir('tony')
     # Loop over each frame in the animated image
     index = 0 
     frames = []
-    for image in images:
+    start = None
+    for image_path in images:
         print(index)
         #add text to the image in the rop right coner saying the class name
-        img = Image.open('images/processed/squat/unseen/unknown/'+image)
-        prediction = predictions[index]
-        # if prediction
-        # value_text = f'{'
+        img = Image.open('tony/'+image_path)
+        prediction = predictions[predictions.image_path==image_path].class_name.values[0]
+        max_prob = np.max(predictions[predictions.image_path==image_path][['class_0', 'class_1']].values)
+        value_text = f'{prediction} {max_prob}'
         draw = ImageDraw.Draw(img)
-        draw.text((img.width - 500, 0), class_names[index], (255, 0, 0), font=font)
+        draw.text((img.width - 500, 0), value_text, (255, 0, 0), font=font)
         frames.append(img)
         index += 1
-        if index>10:
-            break
+
     # Save the frames as an animated gif
-    frames[0].save('squat_2.gif', format='GIF', save_all=True, append_images=frames[1:])
+    frames[0].save('squat_tony_15.gif', format='GIF', save_all=True, append_images=frames[1:], fps=15)
+    frames[0].save('squat_tony_30.gif', format='GIF', save_all=True, append_images=frames[1:], fps=30)
+    frames[0].save('squat_tony_29.gif', format='GIF', save_all=True, append_images=frames[1:], fps=29)
     print('saved gif')
 
 if mode =='run_on_new_data':
     #Applying it on new data
     model= keras.models.load_model(f'{excercise}_model.h5')
     print('APPLYING ON NEW DATA')
-    # create_features('squat', 'unseen')
-    csv_file = f'unseen_{excercise}.csv'
-    X_p_test, y_p_test, class_names, df_test = load_pose_landmarks(csv_file)
-    predictions = model.predict(X_p_test)
-    best_value = np.max(predictions)
-    class_labels = np.argmax(predictions, axis=1)
-    class_names = ['start' if value==0 else 'end' for value in class_labels]
-    #save to json file
-    import json
-    #save best_value as array
-    np.save( 'best.npy',best_value)
-    #save class names to json file
-    
+    observations = []
+    idx =0 
+    for image_path in os.listdir('tony'):
+        print(idx)
+        row = []
+        image = tf.io.read_file(f'tony/{image_path}')
+        image = tf.io.decode_jpeg(image)
+        features = generate_features(image)
+        features = np.array(features).reshape(1,51)
+        prediction = model.predict(features)
+        class_no = np.argmax(prediction)
+        class_name = class_names[class_no]
+        row = [image_path, prediction[0][0], prediction[0][1], class_name, class_no]
+        observations.append(row)
+        idx+=1
+
+    df = pd.DataFrame(observations, columns=['image_path', 'class_0', 'class_1', 'class_name', 'class_no'])
+    df.to_csv('tony_predictions.csv')
+
+
 
 if mode =='generate_video':
-    import json
-    predictions = np.load('best.npy')
+    predictions = pd.read_csv('tony_predictions.csv')
     generated_graded_video(predictions)
