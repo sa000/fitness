@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import font_manager
 import imageio
+from helpers.helpers import draw_prediction_on_image, detect
 
 import os
 import sys
@@ -26,7 +27,8 @@ from helpers.movenet_processor import MoveNetPreprocessor
 from helpers.landmarks import load_pose_landmarks, landmarks_to_embedding
 import io
 from PIL import Image, ImageDraw, ImageSequence,ImageFont
-
+from data import BodyPart
+class_names = ['start', 'end']
 def create_features(excercise: str, dataset_type: str):
     """Creates a model for a given excercise.
 
@@ -38,15 +40,59 @@ def create_features(excercise: str, dataset_type: str):
     """
     
     images_in_train_folder = os.path.join(IMAGES_ROOT, excercise, dataset_type)
-    images_out_train_folder = f'poses_images_out_{dataset_type}_{excercise}'
-    csvs_out_train_path = f'{dataset_type}_{excercise}.csv'
-    preprocessor = MoveNetPreprocessor(
-    images_in_folder=images_in_train_folder,
-    images_out_folder=images_out_train_folder,
-    csvs_out_path=csvs_out_train_path,
-    )
+    # images_out_train_folder = f'poses_images_out_{dataset_type}_{excercise}'
+    # csvs_out_train_path = f'{dataset_type}_{excercise}.csv'
+    # preprocessor = MoveNetPreprocessor(
+    # images_in_folder=images_in_train_folder,
+    # images_out_folder=images_out_train_folder,
+    # csvs_out_path=csvs_out_train_path,
+    # )
+    observations = []
+    
+    list_names = [[bodypart.name + '_x', bodypart.name + '_y', 
+                  bodypart.name + '_score'] for bodypart in BodyPart] 
+    header_name = []
+    for columns_name in list_names:
+      header_name += columns_name
+    header_name.append('class_name')
+    header_name.append('class_no')
+    for class_name in os.listdir(images_in_train_folder):
+        idx = 0  
+        for image_name in os.listdir(images_in_train_folder+'/'+class_name):
+            idx +=1 
+            image_path =  images_in_train_folder+'/'+class_name+'/'+image_name
+            image = tf.io.read_file(image_path)
+            image = tf.io.decode_jpeg(image)
+            image_height, image_width, channel = image.shape
+            if channel==4:
+                image = image[::3]
+            coordinates = generate_features(image)
+            if coordinates == []:
+                print("CANT")
+                continue
+            class_no =class_names.index(class_name)
+            coordinates = np.append(coordinates,class_name)
+            coordinates = np.append(coordinates,class_no)
+            observations.append(coordinates)
 
-    preprocessor.process(per_pose_class_limit=None)
+    df = pd.DataFrame(observations, columns = header_name)
+    df.to_csv(f'{dataset_type}_{excercise}.csv', index=False)
+    print(f'Created {dataset_type}_{excercise}.csv')
+    return df
+def generate_features(image):
+    person = detect(image)
+    min_landmark_score = min(
+        [keypoint.score for keypoint in person.keypoints])
+    if min_landmark_score <=.03:
+        print("fSkipping {image_path} has a low score of {min_landmark_score}")
+        return []
+    pose_landmarks = np.array(
+        [[keypoint.coordinate.x, keypoint.coordinate.y, keypoint.score]
+            for keypoint in person.keypoints],
+        dtype=np.float32)
+    coordinates = pose_landmarks.flatten().tolist()
+    return coordinates    
+
 def create_model(class_names: list):
     inputs = tf.keras.Input(shape=(51))
     embedding = landmarks_to_embedding(inputs)
@@ -133,23 +179,37 @@ def plot_confusion_matrix(cm, classes,
 IMAGES_ROOT = 'images/processed'  
 
 mode = 'create_model'
-mode = 'run_on_new_data'
 excercise = 'squat'
+def split_data(df):
+    df.drop(columns=['class_name'], inplace =True)
+    y = df.pop('class_no')
+    y = keras.utils.to_categorical(y)
+    X = df.astype('float64')
+    return X,y 
+
 if mode =='create_model':
-    create_features('squat', 'train')
-    create_features('squat', 'test')
+    print("Creating datasets")
+
+    train_df = create_features('squat', 'train')
+    test_df = create_features('squat', 'test')
 
 
-    csv_file = f'train_{excercise}.csv'
-    X, y, class_names, _ = load_pose_landmarks(csv_file)
+    # csv_file = f'train_{excercise}.csv'
+    # X, y, class_names, _ = load_pose_landmarks(csv_file)
+    X , y = split_data(train_df)
+    X_test, y_test = split_data(test_df)
+
+
     X_train, X_val, y_train, y_val = train_test_split(X, y,
                                                     test_size=0.15)
-    csv_file = f'test_{excercise}.csv'                                          
-    X_test, y_test, _, df_test = load_pose_landmarks(csv_file)
+
+    # csv_file = f'test_{excercise}.csv'                                          
+    # X_test, y_test, _, df_test = load_pose_landmarks(csv_file)
 
     model = create_model(class_names)
-    model.save(f'{excercise}_model.h5')
+    
     history = run_model(X_train, y_train, X_val, y_val)
+    model.save(f'{excercise}_model.h5')
     create_plot(excercise, history)
     y_pred = model.predict(X_test)
 
@@ -186,8 +246,8 @@ def generated_graded_video(predictions):
         #add text to the image in the rop right coner saying the class name
         img = Image.open('images/processed/squat/unseen/unknown/'+image)
         prediction = predictions[index]
-        if prediction
-        value_text = f'{'
+        # if prediction
+        # value_text = f'{'
         draw = ImageDraw.Draw(img)
         draw.text((img.width - 500, 0), class_names[index], (255, 0, 0), font=font)
         frames.append(img)
@@ -197,7 +257,7 @@ def generated_graded_video(predictions):
     # Save the frames as an animated gif
     frames[0].save('squat_2.gif', format='GIF', save_all=True, append_images=frames[1:])
     print('saved gif')
-mode = 'generate_video'
+
 if mode =='run_on_new_data':
     #Applying it on new data
     model= keras.models.load_model(f'{excercise}_model.h5')
