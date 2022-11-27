@@ -1,6 +1,7 @@
 import csv
 import os 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+from natsort import natsorted
 import cv2
 import itertools
 import numpy as np
@@ -8,6 +9,7 @@ import pandas as pd
 from matplotlib import font_manager
 import imageio
 from helpers.helpers import draw_prediction_on_image, detect
+import imageio
 
 import os
 import sys
@@ -229,30 +231,56 @@ def generated_graded_video(predictions):
     #create font to be bla
     font = font_manager.FontProperties(family='sans-serif', weight='bold')
     file = font_manager.findfont(font)
-    font = ImageFont.truetype(file, 48)
+    font = ImageFont.truetype(file, 14)
+    #make the font smaller
 
-    images = os.listdir('tony')
+
+    images = natsorted(os.listdir('tony'))
     # Loop over each frame in the animated image
     index = 0 
     frames = []
     start = None
+    import PIL
+    duration = 20
+    excericse_count = 0
+    prev_state , current_state = 'start', 'start'
+    print(duration)
+    excercise_complete, just_finished = False, False
+    transition_state = False
+    on_new_rep = False
+    excercise_count =0 
     for image_path in images:
-        print(index)
+        print(image_path)
         #add text to the image in the rop right coner saying the class name
         img = Image.open('tony/'+image_path)
+        height, width = img.size
+        img  = img.resize((height//3, width//3))
         prediction = predictions[predictions.image_path==image_path].class_name.values[0]
+        current_state = prediction
         max_prob = np.max(predictions[predictions.image_path==image_path][['class_0', 'class_1']].values)
-        value_text = f'{prediction} {max_prob}'
+        max_prob = float(int(max_prob * 1000)) / 1000
+        print(current_state, prev_state, transition_state)
+        if (current_state != prev_state or transition_state) and current_state=='end':
+            #Changed states, are we finishing the rep?
+            transition_state = True
+            if max_prob>=.95:
+                excercise_count +=1
+                transition_state = False
+
+
+
+       
+        value_text = f'Prediction: {prediction}: Probability  {max_prob} , \nCurrent Excercise Count{excercise_count}'
+        print(value_text)
         draw = ImageDraw.Draw(img)
-        draw.text((img.width - 500, 0), value_text, (255, 0, 0), font=font)
+        draw.text((img.width - 350, 0), value_text, (255, 0, 0), font=font)
         frames.append(img)
         index += 1
-
-    # Save the frames as an animated gif
-    frames[0].save('squat_tony_15.gif', format='GIF', save_all=True, append_images=frames[1:], fps=15)
-    frames[0].save('squat_tony_30.gif', format='GIF', save_all=True, append_images=frames[1:], fps=30)
-    frames[0].save('squat_tony_29.gif', format='GIF', save_all=True, append_images=frames[1:], fps=29)
-    print('saved gif')
+        prev_state = current_state
+    frames[0].save(f'optimized_{duration}.gif', format='GIF', save_all=True, duration=duration, append_images=frames[1:], quality=40, optimize=True)
+    duration = 20
+    #print(duration)
+    #frames[0].save(f'optimized_{duration}.gif', format='GIF', save_all=True, duration=duration, append_images=frames[1:], quality=40, optimize=True)
 
 if mode =='run_on_new_data':
     #Applying it on new data
