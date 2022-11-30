@@ -1,48 +1,59 @@
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from tensorflow.keras.utils import img_to_array, save_img, load_img # type: ignore
 import tensorflow as tf
 import random 
 import uuid
-#hey
-RAW_IMAGES = 'images/raw'
-POSTAUGMENTATION_PATH = 'images/processed'
-DATASET_TYPES = ['train', 'test']
-POSITIONS = ['start', 'end']
-
-#with tensorflow use the avx2 fma if aaviablle
-if tf.test.gpu_device_name():
-   print('Default GPU Device: {}'.format(tf.test.gpu_device_name()))
-else:
-   print("Please install GPU version of TF")
+from globals import RAW_IMAGES, POSTAUGMENTATION_PATH
 
 
-#loop through folders in directory
-def initialize_folder(excercise):
-    if not os.path.exists(os.path.join(POSTAUGMENTATION_PATH, excercise)):
-        os.makedirs(os.path.join(POSTAUGMENTATION_PATH, excercise))
-    for dataset in DATASET_TYPES: 
-        if not os.path.exists(os.path.join(POSTAUGMENTATION_PATH, excercise, dataset)):
-            os.makedirs(os.path.join(POSTAUGMENTATION_PATH, excercise, dataset))
-        for position in POSITIONS:
-            if not os.path.exists(os.path.join(POSTAUGMENTATION_PATH, excercise, dataset, position)):
-                os.makedirs(os.path.join(POSTAUGMENTATION_PATH, excercise, dataset, position))
+def augment_image(img: tf.Tensor):
+    '''
+    Augment an image through a series of transformations
+    
+    args:
+    img: image to augment
+    '''
+    augmented_images = []
+    flipped = tf.image.flip_left_right(img_to_array(img)) 
+    augmented_images = augmented_images + [flipped]
+    return augmented_images
 
-def augment_image(raw_image, excercise, position):
-    flipped = tf.image.flip_left_right(img_to_array(raw_image)) 
-    images = [raw_image, flipped]
+def save_images(images: list, excercise: str, class_name: str):
+    '''
+    Save images to the appropriate folder
+
+    args:
+
+    images: list of images to save
+    excercise: the excercise the images are for
+    class_name: the class the images belong to
+
+    '''
     dataset_type = 'train' if random.random()<.8 else 'test'
     for image in images:
-        #select a random number between 0 and 1
         uuid_name = str(uuid.uuid4())
         image_name = f'{uuid_name}.png'
-        save_img(os.path.join(POSTAUGMENTATION_PATH, excercise, dataset_type, position, image_name), image)
-    #FLip and save image
+        image_path = os.path.join(POSTAUGMENTATION_PATH, excercise, dataset_type, class_name, image_name)
+        save_img(image_path, image)
 
-excercise = 'squat'
-initialize_folder(excercise)
-for position in POSITIONS:
-    for image in os.listdir(os.path.join(RAW_IMAGES, excercise, position)):
-        print(f'Processing {image} for {excercise} {position}')
-        img = load_img(os.path.join(RAW_IMAGES, excercise, position, image))
-        augment_image(img, excercise, position)
+
+def perform_agumentation(excercise: str):
+    '''
+    Perform augmentation on all images in the raw images folder
+    
+    args:
+        excercise: the excercise to perform augmentation on
+    '''
+    print(f"Performing augmentation for {excercise}")
+    for position in ['start', 'end']:
+        image_file_path = os.path.join(RAW_IMAGES, excercise, position)
+        for image_file in image_file_path:
+            print(f'Augmenting {image_file} for {excercise} {position}')
+            image_path = os.path.join(image_file_path, image_file)
+            img = load_img(image_path)
+            augment_image(img, excercise, position)
+            
+if __name__ == "__main__":
+    excercise = 'squat'
+    perform_agumentation(excercise)
+
