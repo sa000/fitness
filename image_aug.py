@@ -6,7 +6,7 @@ import uuid
 from globals import RAW_IMAGES, POSTAUGMENTATION_PATH
 
 
-def augment_image(img: tf.Tensor):
+def get_augmented_images(img: tf.Tensor):
     """
     Augment an image through a series of transformations
 
@@ -40,7 +40,7 @@ def save_images(images: list, excercise: str, class_name: str):
         save_img(image_path, image)
 
 
-def perform_agumentation(excercise: str):
+def perform_augmentation(excercise: str):
     """
     Perform augmentation on all images in the raw images folder
 
@@ -50,13 +50,15 @@ def perform_agumentation(excercise: str):
     print(f"Performing augmentation for {excercise}")
     for position in ["start", "end"]:
         image_file_path = os.path.join(RAW_IMAGES, excercise, position)
-        for image_file in image_file_path:
+        image_files = os.listdir(image_file_path)
+        for image_file in image_files:
             print(f"Augmenting {image_file} for {excercise} {position}")
             image_path = os.path.join(image_file_path, image_file)
             img = load_img(image_path)
-            augment_image(img, excercise, position)
+            processed_images = get_augmented_images(img)
+            save_images(processed_images, excercise, position)
 
 
 if __name__ == "__main__":
     excercise = "squat"
-    perform_agumentation(excercise)
+    perform_augmentation(excercise)

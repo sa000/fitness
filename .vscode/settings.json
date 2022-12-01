@@ -1,7 +1,0 @@
-{
-    "python.terminal.launchArgs": [
-
-    ],
-    "python.linting.pep8Enabled": true,
-    "python.linting.pylintEnabled": false,
-}

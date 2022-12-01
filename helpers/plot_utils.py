@@ -19,7 +19,7 @@ def create_plot(excercise:str, history: list):
     plt.legend(['TRAIN', 'VAL'], loc='lower right')
     plt.show()
     #Save the matplot figure
-    plt.savefig(f'{RESOURCES_ROOT}/plots/{excercise}_model_accuracy.png')
+    plt.savefig(f'{RESOURCES_ROOT}/{excercise}/plots/{excercise}_model_accuracy.png')
     plt.close()    
 
 def plot_confusion_matrix(cm: np.ndarray , classes: list, excercise:str,   normalize = False ,cmap=plt.cm.Blues):
@@ -52,6 +52,6 @@ def plot_confusion_matrix(cm: np.ndarray , classes: list, excercise:str,   norma
   plt.ylabel('True label')
   plt.xlabel('Predicted label')
   plt.tight_layout()
-  plt.savefig(f'{RESOURCES_ROOT}/plots/{excercise}_cm.png')
+  plt.savefig(f'{RESOURCES_ROOT}/{excercise}/plots/{excercise}_cm.png')
   plt.close()  
  

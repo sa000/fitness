@@ -8,7 +8,7 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 import os
 from helpers.plot_utils import create_plot, plot_confusion_matrix
 from tqdm import tqdm
-from feature_generation import generate_features
+from feature_generation import create_features
 import numpy as np
 
 
@@ -108,7 +108,7 @@ def predict_on_unseen_data(excercise: str, unseen_folder="tony"):
         row = []
         image = tf.io.read_file(f"tony/{image_path}")
         image = tf.io.decode_jpeg(image)
-        features = generate_features(image)
+        features = create_features(image)
         features = np.array(features).reshape(1, num_features)
         prediction = model.predict(features)
         class_no = np.argmax(prediction)
@@ -143,6 +143,5 @@ if __name__ == "__main__":
 
     # Plotting
     cm = confusion_matrix(np.argmax(y_test, axis=1), np.argmax(y_pred, axis=1))
-
-    plot_history(history, excercise)
+    create_plot(excercise, history)
     plot_confusion_matrix(cm, class_names, excercise)

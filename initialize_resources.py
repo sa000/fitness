@@ -10,6 +10,10 @@ def make_resources(excercise: str):
     resource_folder = os.path.join(RESOURCES_ROOT, excercise)
     make_folder(resource_folder)
     make_folder(os.path.join(resource_folder, "plots"))
+    make_folder(os.path.join(RESOURCES_ROOT, "unseen"))
+
+    make_folder(os.path.join(RESOURCES_ROOT, "unseen", excercise))
+
     return
 
 

@@ -48,17 +48,12 @@ def create_features(excercise: str, dataset_type: str):
 
     observations = []
     for (class_no, class_name) in enumerate(class_names):
-        IMAGE_LIMIT = 2
-        idx = 0
         class_path = os.path.join(image_folder, class_name)
         image_files = os.listdir(class_path)
         target_info = [class_name, class_no]
         print(f"Processing {class_name} images for {excercise}")
         for image_file in tqdm(image_files, desc="Processing images"):
             print(class_name, image_file)
-            idx += 1
-            if idx == IMAGE_LIMIT:
-                break
             image_path = os.path.join(class_path, image_file)
             image = tf.io.read_file(image_path)
             image = tf.io.decode_jpeg(image)
