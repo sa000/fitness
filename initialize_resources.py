@@ -1,6 +1,6 @@
 import os
 from globals import RESOURCES_ROOT, POSTAUGMENTATION_PATH
-
+import sys
 
 def make_resources(excercise: str):
     """
@@ -46,6 +46,9 @@ def initialize_postaugmentation_folders(excercise: str):
 
 
 if __name__ == "__main__":
-    excercise = "squat"
+    try:
+        excercise = sys.argv[1]
+    except:
+        exercise='squat' #default
     make_resources(excercise)
     initialize_postaugmentation_folders(excercise)

@@ -67,13 +67,35 @@ def create_features(excercise: str, dataset_type: str):
             observations.append(observation)
         print(f"Processed {class_name} images for {excercise}")
     df = pd.DataFrame(observations, columns=HEADERS)
+    columns_to_drop = get_columns_to_drop(excercise)
+    df.drop(columns = columns_to_drop, inplace=True, axis=1)
+    print(df.shape)
+    #remove the columns_to_drop from the dataframe
     df.to_csv(
         f"{g.RESOURCES_ROOT}/{excercise}/{dataset_type}_{excercise}.csv", index=False
     )
     print(f"Created {dataset_type}_{excercise}.csv")
     return df
 
-
+def get_columns_to_drop(excercise: str):
+    '''
+    Get the columns to drop from the dataframe. Aim to help model learn faster with only relevant features
+    '''
+    not_revelant_body_parts = []
+    if excercise=='kb_around_world':
+        not_revelant_body_parts = ['NOSE', 'EYE', 'EAR', 'KNEE', 'ANKLE']
+    
+    #for each not relevant body part, remove the LEFT, RIGHT and SCORE columns from the BODYPART columns
+    columns_to_drop = []
+    for body_part in not_revelant_body_parts:            
+        for column in [body_part+'_x', body_part+'_y', body_part+'_score']:
+            if body_part =='NOSE':
+                columns_to_drop.append(column)
+            else:
+                columns_to_drop.append('LEFT_'+column)
+                columns_to_drop.append('RIGHT_'+column)
+    return columns_to_drop
+    
 def get_keypoints(image: np.ndarray) -> list:
     """
     Get the keypoints from the image using movement
@@ -99,7 +121,11 @@ def get_keypoints(image: np.ndarray) -> list:
 
 
 if __name__ == "__main__":
-    excercise = "squat"
+    import sys
+    try:
+        excercise = sys.argv[1]
+    except:
+        excercise = "squat"
     print(excercise)
     create_features(excercise, "train")
     create_features(excercise, "test")

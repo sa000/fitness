@@ -12,7 +12,7 @@ from feature_generation import create_features
 import numpy as np
 
 
-def create_model(class_names: list, num_features=51):
+def create_model(class_names: list, num_features: int):
     """
     Create a model with the following layers:
     1. Input layer
@@ -21,7 +21,8 @@ def create_model(class_names: list, num_features=51):
     4. Dropout layer
     5. Dense layer
     6. Dropout layer
-    7. (Dense) Output layer
+    7. Dense layer
+    8. Output layer
     """
     inputs = tf.keras.Input(shape=(num_features))
     embedding = landmarks_to_embedding(inputs)
@@ -124,14 +125,19 @@ def predict_on_unseen_data(excercise: str, unseen_folder="tony"):
 
 
 if __name__ == "__main__":
-    excercise = "squat"
+    import sys
+    try:
+        excercise = sys.argv[1]
+    except:
+        excercise = "squat"
     class_names = ["start", "end"]
     X, y = split_data("train")
     X_test, y_test = split_data("test")
 
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.15)
-
-    model = create_model(class_names)
+    num_features = X_train.shape[1]
+    print(f"Number of features: {num_features}")
+    model = create_model(class_names, num_features)
     history = train_model(X_train, y_train, X_val, y_val)
     model.save(f"{RESOURCES_ROOT}/{excercise}/{excercise}_model.h5")
     # Prediction

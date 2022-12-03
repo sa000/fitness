@@ -60,5 +60,9 @@ def perform_augmentation(excercise: str):
 
 
 if __name__ == "__main__":
-    excercise = "squat"
+    import sys
+    try:
+        excercise = sys.argv[1]
+    except:
+        excercise = "squat"
     perform_augmentation(excercise)

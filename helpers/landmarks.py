@@ -43,7 +43,7 @@ def get_center_point(landmarks, left_bodypart, right_bodypart):
   return center
 
 
-def get_pose_size(landmarks, torso_size_multiplier=2.5):
+def get_pose_size(landmarks, num_parts,torso_size_multiplier=2.5,):
   """Calculates pose size.
 
   It is the maximum of two values:
@@ -68,7 +68,7 @@ def get_pose_size(landmarks, torso_size_multiplier=2.5):
   # Broadcast the pose center to the same size as the landmark vector to
   # perform substraction
   pose_center_new = tf.broadcast_to(pose_center_new,
-                                    [tf.size(landmarks) // (17*2), 17, 2])
+                                    [tf.size(landmarks) // (num_parts*2), num_parts, 2])
 
   # Dist to pose center
   d = tf.gather(landmarks - pose_center_new, 0, axis=0,
@@ -82,7 +82,7 @@ def get_pose_size(landmarks, torso_size_multiplier=2.5):
   return pose_size
 
 
-def normalize_pose_landmarks(landmarks):
+def normalize_pose_landmarks(landmarks, num_parts):
   """Normalizes the landmarks translation by moving the pose center to (0,0) and
   scaling it to a constant pose size.
   """
@@ -93,11 +93,11 @@ def normalize_pose_landmarks(landmarks):
   # Broadcast the pose center to the same size as the landmark vector to perform
   # substraction
   pose_center = tf.broadcast_to(pose_center, 
-                                [tf.size(landmarks) // (17*2), 17, 2])
+                                [tf.size(landmarks) // (num_parts*2), num_parts, 2])
   landmarks = landmarks - pose_center
 
   # Scale the landmarks to a constant pose size
-  pose_size = get_pose_size(landmarks)
+  pose_size = get_pose_size(landmarks, num_parts)
   landmarks /= pose_size
 
   return landmarks
@@ -106,10 +106,11 @@ def normalize_pose_landmarks(landmarks):
 def landmarks_to_embedding(landmarks_and_scores):
   """Converts the input landmarks into a pose embedding."""
   # Reshape the flat input into a matrix with shape=(17, 3)
-  reshaped_inputs = keras.layers.Reshape((17, 3))(landmarks_and_scores)
+  num_parts = int(landmarks_and_scores.shape[1] / 3)
+  reshaped_inputs = keras.layers.Reshape((num_parts, 3))(landmarks_and_scores)
 
   # Normalize landmarks 2D
-  landmarks = normalize_pose_landmarks(reshaped_inputs[:, :, :2])
+  landmarks = normalize_pose_landmarks(reshaped_inputs[:, :, :2],num_parts)
 
   # Flatten the normalized landmark coordinates into a vector
   embedding = keras.layers.Flatten()(landmarks)
