@@ -1,15 +1,19 @@
-from globals import RESOURCES_ROOT
-import pandas as pd
-import keras
-from sklearn.model_selection import train_test_split
-import tensorflow as tf
-from helpers.landmarks import landmarks_to_embedding
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 import os
-from helpers.plot_utils import create_plot, plot_confusion_matrix
-from tqdm import tqdm
-from feature_generation import create_features
+from natsort import natsorted
+
+import keras
 import numpy as np
+import pandas as pd
+import tensorflow as tf
+from sklearn.metrics import (accuracy_score, classification_report,
+                             confusion_matrix)
+from sklearn.model_selection import train_test_split
+from tqdm import tqdm
+
+from feature_generation import create_features, create_feature_image
+from globals import RESOURCES_ROOT
+from helpers.landmarks import landmarks_to_embedding
+from helpers.plot_utils import create_plot, plot_confusion_matrix
 
 
 def create_model(class_names: list, num_features: int):
@@ -88,7 +92,7 @@ def train_model(
     return history
 
 
-def predict_on_unseen_data(excercise: str, unseen_folder="tony"):
+def predict_on_unseen_data(excercise: str, unseen_folder:str):
     """
     Predict on unseen data
 
@@ -98,18 +102,19 @@ def predict_on_unseen_data(excercise: str, unseen_folder="tony"):
 
     """
     # Load the best weights
-    model = keras.models.load_model(f"RESOURCES_ROOT/{excercise}_model.h5")
+    model = keras.models.load_model(f"{RESOURCES_ROOT}/{excercise}/{excercise}_model.h5")
     observations = []
-    unseen_images = os.listdir(unseen_folder)
+    unseen_images = natsorted(os.listdir(unseen_folder))
     idx = 0
     num_features = 51  # TODO: make this dynamic
     class_names = ["start", "end"]
 
     for image_path in tqdm(unseen_images, desc="Predicting on unseen data"):
         row = []
-        image = tf.io.read_file(f"tony/{image_path}")
+        image = tf.io.read_file(f"{unseen_folder}/{image_path}")
         image = tf.io.decode_jpeg(image)
-        features = create_features(image)
+        #features = create_features(image)
+        features = create_feature_image(image, excercise='squat')
         features = np.array(features).reshape(1, num_features)
         prediction = model.predict(features)
         class_no = np.argmax(prediction)
@@ -122,7 +127,7 @@ def predict_on_unseen_data(excercise: str, unseen_folder="tony"):
         columns=["image_path", "class_0", "class_1", "class_name", "class_no"],
     )
     df.to_csv("{unseen_folder}_predictions.csv")
-
+    return df
 
 if __name__ == "__main__":
     import sys

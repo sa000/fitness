@@ -1,12 +1,16 @@
-from natsort import natsorted
+import os
 
 import cv2
-from matplotlib import font_manager
-from PIL import ImageFont, Image
-import os
-from tqdm import tqdm
 import numpy as np
+from matplotlib import font_manager
+from natsort import natsorted
+from PIL import Image, ImageFont
+from tqdm import tqdm
+import pandas as pd
 from initialize_resources import make_folder
+from model_generator import predict_on_unseen_data
+
+project_root = os.path.dirname(os.path.dirname(__file__))
 
 def load_video_into_cv2(
     excercise,
@@ -17,7 +21,6 @@ def load_video_into_cv2(
 
     """
     print(f'Loading video {video_file} into cv2')
-    project_root = os.path.dirname(os.path.dirname(__file__))
     print(project_root)
 
     video_label = video_file.split(".")[0]
@@ -37,8 +40,20 @@ def load_video_into_cv2(
             print('Video ended')
             break
 
+def generate_predictions_onframes(excercise, video_file="tony_squats.mp4"):
+    '''
+    Generate predictions on frames
+    excercise: string, name of excercise
+    video_file: string, name of video file
+    '''
+    #load tensorflow model
+    model = tf.keras.models.load_model(f"resources/{excercise}/{excercise}_model.h5")
+    #load frames
+    frame_path = os.path.join("images", "unseen", excercise, video_file.strip('.mp4'))
+    frames = natsorted(os.listdir(frame_path))
+    #load features
 
-def generated_graded_video(predictions: list, excercise: str,video_file="tony_squats.mp4"):
+def generated_graded_video(excercise: str,video_file="tony_squats.mp4"):
     """
     Generates a graded video. Using the predictions, it will grade the video and add a label to each frame
     """
@@ -47,9 +62,14 @@ def generated_graded_video(predictions: list, excercise: str,video_file="tony_sq
     file = font_manager.findfont(font)
     font = ImageFont.truetype(file, 14)
     # make the font smaller
-
-    frame_path = os.path.join("images", "unseen", excercise, video_file)
+   
+    video_label = 'tony_squats'
+    frame_path = os.path.join(project_root, "images", 'unseen', excercise, video_label)
     frames = natsorted(os.listdir(frame_path))
+
+    # Load predictions
+    #predictions = predict_on_unseen_data(excercise, frame_path)
+    predictions = pd.read_csv("{unseen_folder}_predictions.csv")
     # Loop over each frame in the animated image
     index = 0
     start = None
@@ -61,18 +81,17 @@ def generated_graded_video(predictions: list, excercise: str,video_file="tony_sq
     transition_state = False
     on_new_rep = False
     excercise_count = 0
-    for frame_path in tqdm(frames, desc="Processing Frame"):
-        print(frame_path)
+    for frame in tqdm(frames[0:10], desc="Processing Frame"):
         # add text to the image in the rop right coner saying the class name
-        img = Image.open("{unseen_path}/" + frame_path)
+        img = Image.open(f"{frame_path}/{frame}")
         height, width = img.size
         img = img.resize((height // 3, width // 3))
         prediction = predictions[
-            predictions.frame_path == frame_path
+            predictions.image_path == frame
         ].class_name.values[0]
         current_state = prediction
         max_prob = np.max(
-            predictions[predictions.frame_path == frame_path][
+            predictions[predictions.image_path == frame][
                 ["class_0", "class_1"]
             ].values
         )
@@ -84,3 +103,6 @@ def generated_graded_video(predictions: list, excercise: str,video_file="tony_sq
             if max_prob >= 0.95:
                 excercise_count += 1
                 transition_state = False
+if __name__ == 'main':
+    excercise = "squat"
+    generated_graded_video(excercise)

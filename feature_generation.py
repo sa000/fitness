@@ -30,18 +30,36 @@ def get_headers_for_model() -> list:
 
 HEADERS = get_headers_for_model()
 
+def create_feature_image(image, excercise: str):
+    """Creates a feature image for a given image.
+
+    Args:
+        image: The image to create a feature image for.
+    Returns:
+        A feature image.
+    """
+    image_height, image_width, channel = image.shape
+    if channel == 4:
+        image = image[::3]
+    coordinates = get_keypoints(image)
+    if coordinates == []:
+        return None
+    df = pd.DataFrame([coordinates], columns=HEADERS[:-2])
+    columns_to_drop = get_columns_to_drop(excercise)
+    df.drop(columns = columns_to_drop, inplace=True, axis=1)
+    return df
 
 def create_features(excercise: str, dataset_type: str):
     """Creates a model for a given excercise.
 
     Args:
         excercise: The excercise to create a model for.
-
+        dataset_type: The type of dataset t.
     Returns:
         A compiled model.
     """
     print(f"Creating feature set for {excercise} in the {dataset_type} dataset")
-
+        
     images_in_train_folder = os.path.join(g.IMAGES_ROOT, excercise, dataset_type)
     image_folder = os.path.join(g.IMAGES_ROOT, excercise, dataset_type)
     class_names = os.listdir(image_folder)
