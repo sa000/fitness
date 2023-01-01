@@ -107,15 +107,15 @@ def predict_on_unseen_data(excercise: str):
     unseen_folder = f"images/video_frames/{excercise}"
     unseen_images = natsorted(os.listdir(unseen_folder))
     idx = 0
-    num_features = 51  # TODO: make this dynamic
     class_names = ["start", "end"]
 
-    for image_path in tqdm(unseen_images, desc="Predicting on unseen data"):
+    for image_path in tqdm(unseen_images[0:100], desc="Predicting on unseen data"):
         row = []
         image = tf.io.read_file(f"{unseen_folder}/{image_path}")
         image = tf.io.decode_jpeg(image)
-        #features = create_features(image)
-        features = create_feature_image(image, excercise='squat')
+        features = create_feature_image(image, excercise)
+        num_features = features.shape[1]
+
         features = np.array(features).reshape(1, num_features)
         prediction = model.predict(features)
         class_no = np.argmax(prediction)

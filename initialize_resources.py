@@ -1,6 +1,8 @@
 import os
-from globals import RESOURCES_ROOT, POSTAUGMENTATION_PATH
 import sys
+
+from globals import POSTAUGMENTATION_PATH, RESOURCES_ROOT
+
 
 def make_resources(excercise: str):
     """
@@ -14,6 +16,8 @@ def make_resources(excercise: str):
 
     make_folder(os.path.join(RESOURCES_ROOT, "unseen", excercise))
 
+    make_folder(os.path.join('images', "video_frames", excercise))
+    make_folder(os.path.join('images', "video_frames", excercise+'_labeled'))
     return
 
 

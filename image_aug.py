@@ -1,9 +1,12 @@
 import os
-from tensorflow.keras.utils import img_to_array, save_img, load_img  # type: ignore
-import tensorflow as tf
 import random
 import uuid
-from globals import RAW_IMAGES, POSTAUGMENTATION_PATH
+
+import tensorflow as tf
+from tensorflow.keras.utils import (img_to_array, load_img,  # type: ignore
+                                    save_img)
+
+from globals import POSTAUGMENTATION_PATH, RAW_IMAGES
 
 
 def get_augmented_images(img: tf.Tensor):
@@ -52,6 +55,8 @@ def perform_augmentation(excercise: str):
         image_file_path = os.path.join(RAW_IMAGES, excercise, position)
         image_files = os.listdir(image_file_path)
         for image_file in image_files:
+            if image_file == ".DS_Store":
+                continue
             print(f"Augmenting {image_file} for {excercise} {position}")
             image_path = os.path.join(image_file_path, image_file)
             img = load_img(image_path)
