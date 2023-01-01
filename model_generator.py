@@ -1,4 +1,5 @@
 import os
+import sys
 
 import keras
 import numpy as np
@@ -14,7 +15,7 @@ from feature_generation import create_feature_image, create_features
 from globals import RESOURCES_ROOT
 from helpers.landmarks import landmarks_to_embedding
 from helpers.plot_utils import create_plot, plot_confusion_matrix
-import sys
+
 
 def create_model(class_names: list, num_features: int):
     """
@@ -110,7 +111,7 @@ def predict_on_unseen_data(excercise: str):
     idx = 0
     class_names = ["start", "end"]
 
-    for image_path in tqdm(unseen_images[0:300], desc="Predicting on unseen data"):
+    for image_path in tqdm(unseen_images, desc="Predicting on unseen data"):
         row = []
         image = tf.io.read_file(f"{unseen_folder}/{image_path}")
         image = tf.io.decode_jpeg(image)

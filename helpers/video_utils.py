@@ -9,8 +9,6 @@ from PIL import Image, ImageFont
 from tqdm import tqdm
 
 from initialize_resources import make_folder
-from model_generator import predict_on_unseen_data
-
 project_root = os.path.dirname(os.path.dirname(__file__))
 
 def load_video_into_cv2(
@@ -67,7 +65,6 @@ def generated_graded_video(excercise: str):
     frames = natsorted(os.listdir(frame_path))
 
     # Load predictions
-    # predictions = predict_on_unseen_data(excercise, frame_path)
     predictions = pd.read_csv(f"{excercise}_video_predictions.csv")
     # Loop over each frame in the animated image
     index = 0
@@ -102,7 +99,6 @@ def generated_graded_video(excercise: str):
             excercise_count += 1
             print(excercise_count)
         prev_state = current_state
-        print(frame, excercise_count)
         #write the probablity of the prediction on the image 
         img = np.array(img)
         img = cv2.putText(
@@ -129,11 +125,14 @@ def convert_frames_to_gif(
     # Get the frames and convert them to a gif
     frames = natsorted(os.listdir(frame_path))
     images = []
-    for frame in frames:
+    for frame in tqdm(frames, desc='Saving gif'):
         images.append(imageio.imread(f"{frame_path}/{frame}"))
     imageio.mimsave(f"resources/{excercise}/{excercise}_labeled.gif", images, fps=fps)
 
 if __name__ == 'main':
     excercise = "squat"
     #generated_graded_video(excercise)
+    load_video_into_cv2(excercise)
+    
+    generated_graded_video(excercise)
     convert_frames_to_gif(excercise)
