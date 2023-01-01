@@ -14,7 +14,7 @@ from feature_generation import create_feature_image, create_features
 from globals import RESOURCES_ROOT
 from helpers.landmarks import landmarks_to_embedding
 from helpers.plot_utils import create_plot, plot_confusion_matrix
-
+import sys
 
 def create_model(class_names: list, num_features: int):
     """
@@ -70,7 +70,7 @@ def train_model(
     """
     # Add a checkpoint callback to store the checkpoint that has the highest
     # validation accuracy.
-    checkpoint_path = "weights.best.hdf5"
+    checkpoint_path = "kb_weights.best.hdf5"
     checkpoint = keras.callbacks.ModelCheckpoint(
         checkpoint_path,
         monitor="val_accuracy",
@@ -85,7 +85,7 @@ def train_model(
         X_train,
         y_train,
         epochs=200,
-        batch_size=16,
+        batch_size=4,
         validation_data=(X_val, y_val),
         callbacks=[checkpoint, earlystopping],
     )
@@ -102,6 +102,7 @@ def predict_on_unseen_data(excercise: str):
 
     """
     # Load the best weights
+    print('Predicting on unseen data for ', excercise)
     model = keras.models.load_model(f"{RESOURCES_ROOT}/{excercise}/{excercise}_model.h5")
     observations = []
     unseen_folder = f"images/video_frames/{excercise}"
@@ -109,7 +110,7 @@ def predict_on_unseen_data(excercise: str):
     idx = 0
     class_names = ["start", "end"]
 
-    for image_path in tqdm(unseen_images[0:100], desc="Predicting on unseen data"):
+    for image_path in tqdm(unseen_images[0:300], desc="Predicting on unseen data"):
         row = []
         image = tf.io.read_file(f"{unseen_folder}/{image_path}")
         image = tf.io.decode_jpeg(image)
@@ -122,7 +123,7 @@ def predict_on_unseen_data(excercise: str):
         class_name = class_names[class_no]
         row = [image_path, prediction[0][0], prediction[0][1], class_name, class_no]
         observations.append(row)
-
+        print (f"Predicted class: {class_name} ")
     df = pd.DataFrame(
         observations,
         columns=["image_path", "class_0", "class_1", "class_name", "class_no"],
@@ -131,11 +132,10 @@ def predict_on_unseen_data(excercise: str):
     return df
 
 if __name__ == "__main__":
-    import sys
     try:
         excercise = sys.argv[1]
     except:
-        excercise = "squat"
+        excercise = "kb_situp"
     class_names = ["start", "end"]
     X, y = split_data("train")
     X_test, y_test = split_data("test")

@@ -50,10 +50,6 @@ def create_feature_image(image, excercise: str):
     columns_to_drop = get_columns_to_drop(excercise)
     df.drop(columns = columns_to_drop, inplace=True, axis=1)
     #save with a random name
-    import random 
-    rand_int = random.randint(0, 100000)
-    df.to_csv(f'{excercise}__{rand_int}_test.csv', index=False)
-    df.to_csv('test.csv', index=False)
     return df
 
 def create_features(excercise: str, dataset_type: str):
@@ -110,7 +106,7 @@ def get_columns_to_drop(excercise: str):
     if excercise=='kb_around_world':
         not_revelant_body_parts = ['NOSE', 'EYE', 'EAR', 'KNEE', 'ANKLE']
     if excercise=='kb_situp':
-        not_revelant_body_parts = [ 'KNEE', 'ANKLE']
+        not_revelant_body_parts = [ 'KNEE','EYE', 'ANKLE']
     #for each not relevant body part, remove the LEFT, RIGHT and SCORE columns from the BODYPART columns
     columns_to_drop = []
     for body_part in not_revelant_body_parts:            
@@ -129,7 +125,20 @@ def get_keypoints(image: np.ndarray) -> list:
         coordinates: 1x51 array of keypoints. 17 keypoints x 3 (x,y,score)
     """
     person = detect(image)
+
+
+    #Go through each tuple in person.keypoints. if there is a score less than .1, use the RIGHT or LEFT version of the body part
+    #if there is no RIGHT or LEFT version, then skip the image
+    for keypoint in person.keypoints:
+        x_coord, y_coord, score = keypoint.coordinate.x, keypoint.coordinate.y, keypoint.score
+
     min_landmark_score = min([keypoint.score for keypoint in person.keypoints])
+
+
+
+
+
+
     if min_landmark_score <= LANDMARK_THRESHOLD:
         print(
             f"Skipping image because one of the landmarks has a score of {min_landmark_score}"
