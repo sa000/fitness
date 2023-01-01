@@ -2,11 +2,12 @@ import os
 
 import cv2
 import numpy as np
+import pandas as pd
 from matplotlib import font_manager
 from natsort import natsorted
 from PIL import Image, ImageFont
 from tqdm import tqdm
-import pandas as pd
+
 from initialize_resources import make_folder
 from model_generator import predict_on_unseen_data
 
@@ -14,27 +15,25 @@ project_root = os.path.dirname(os.path.dirname(__file__))
 
 def load_video_into_cv2(
     excercise,
-    video_file="tony_squats.mp4",
 ):
     """
     Load video to cv2 and same 30 frames per second to folder
 
     """
+    video_file =f"{excercise}.mp4"
     print(f'Loading video {video_file} into cv2')
-    print(project_root)
 
-    video_label = video_file.split(".")[0]
-    video_path = os.path.join(project_root,"videos", video_file)
+    video_path = os.path.join(project_root,'resources',excercise, video_file)
     video = cv2.VideoCapture(video_path)
     fps = video.get(cv2.CAP_PROP_FPS)
     print('fps',fps)
     count = 0
-    make_folder(os.path.join(project_root, "images", 'unseen', excercise, video_label))
+    make_folder(os.path.join(project_root, "images", 'video_frames', excercise))
     while video.isOpened():
         success, frame = video.read()
         if success:
             print(f'Writing frame {count}')
-            cv2.imwrite(f"{project_root}/images/unseen/{excercise}/{video_label}/{count}.jpg", frame)
+            cv2.imwrite(f"{project_root}/images/video_frames/{excercise}/{count}.jpg", frame)
             count += 1
         else:
             print('Video ended')
@@ -53,7 +52,7 @@ def generate_predictions_onframes(excercise, video_file="tony_squats.mp4"):
     frames = natsorted(os.listdir(frame_path))
     #load features
 
-def generated_graded_video(excercise: str,video_file="tony_squats.mp4"):
+def generated_graded_video(excercise: str):
     """
     Generates a graded video. Using the predictions, it will grade the video and add a label to each frame
     """
@@ -63,13 +62,13 @@ def generated_graded_video(excercise: str,video_file="tony_squats.mp4"):
     font = ImageFont.truetype(file, 14)
     # make the font smaller
    
-    video_label = 'tony_squats'
-    frame_path = os.path.join(project_root, "images", 'unseen', excercise, video_label)
+    frame_path = os.path.join(project_root, "images", 'video_frames', excercise)
+    label_path = os.path.join(project_root, "images", 'video_frames', excercise+'_labeled')
     frames = natsorted(os.listdir(frame_path))
 
     # Load predictions
-    #predictions = predict_on_unseen_data(excercise, frame_path)
-    predictions = pd.read_csv("{unseen_folder}_predictions.csv")
+    # predictions = predict_on_unseen_data(excercise, frame_path)
+    predictions = pd.read_csv(f"{excercise}_video_predictions.csv")
     # Loop over each frame in the animated image
     index = 0
     start = None
@@ -81,7 +80,7 @@ def generated_graded_video(excercise: str,video_file="tony_squats.mp4"):
     transition_state = False
     on_new_rep = False
     excercise_count = 0
-    for frame in tqdm(frames[0:10], desc="Processing Frame"):
+    for frame in tqdm(frames, desc="Processing Frame"):
         # add text to the image in the rop right coner saying the class name
         img = Image.open(f"{frame_path}/{frame}")
         height, width = img.size
@@ -96,13 +95,45 @@ def generated_graded_video(excercise: str,video_file="tony_squats.mp4"):
             ].values
         )
         max_prob = float(int(max_prob * 1000)) / 1000
-        print(current_state, prev_state, transition_state)
-        if (current_state != prev_state or transition_state) and current_state == "end":
-            # Changed states, are we finishing the rep?
-            transition_state = True
-            if max_prob >= 0.95:
-                excercise_count += 1
-                transition_state = False
+
+
+        # Increse the excercise count if we are back in the start state
+        if current_state == "start" and prev_state == "end":
+            excercise_count += 1
+            print(excercise_count)
+        prev_state = current_state
+        print(frame, excercise_count)
+        #write the probablity of the prediction on the image 
+        img = np.array(img)
+        img = cv2.putText(
+            img,
+            f"{prediction}:{max_prob} Reps: {excercise_count}",
+            (15, 20),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (255, 0, 0),
+            1,
+            cv2.LINE_AA,
+        )
+        img = Image.fromarray(img)
+        img.save(f"{label_path}/{frame}")
+
+def convert_frames_to_gif(
+    excercise: str, fps: int = 30
+):
+    """
+    Convert frames to gif
+    """
+    import imageio
+    frame_path = os.path.join(project_root, "images", 'video_frames', excercise+'_labeled')
+    # Get the frames and convert them to a gif
+    frames = natsorted(os.listdir(frame_path))
+    images = []
+    for frame in frames:
+        images.append(imageio.imread(f"{frame_path}/{frame}"))
+    imageio.mimsave(f"resources/{excercise}/{excercise}_labeled.gif", images, fps=fps)
+
 if __name__ == 'main':
     excercise = "squat"
-    generated_graded_video(excercise)
+    #generated_graded_video(excercise)
+    convert_frames_to_gif(excercise)

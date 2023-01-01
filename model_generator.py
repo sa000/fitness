@@ -1,16 +1,16 @@
 import os
-from natsort import natsorted
 
 import keras
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from natsort import natsorted
 from sklearn.metrics import (accuracy_score, classification_report,
                              confusion_matrix)
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-from feature_generation import create_features, create_feature_image
+from feature_generation import create_feature_image, create_features
 from globals import RESOURCES_ROOT
 from helpers.landmarks import landmarks_to_embedding
 from helpers.plot_utils import create_plot, plot_confusion_matrix
@@ -92,7 +92,7 @@ def train_model(
     return history
 
 
-def predict_on_unseen_data(excercise: str, unseen_folder:str):
+def predict_on_unseen_data(excercise: str):
     """
     Predict on unseen data
 
@@ -104,6 +104,7 @@ def predict_on_unseen_data(excercise: str, unseen_folder:str):
     # Load the best weights
     model = keras.models.load_model(f"{RESOURCES_ROOT}/{excercise}/{excercise}_model.h5")
     observations = []
+    unseen_folder = f"images/video_frames/{excercise}"
     unseen_images = natsorted(os.listdir(unseen_folder))
     idx = 0
     num_features = 51  # TODO: make this dynamic
@@ -126,7 +127,7 @@ def predict_on_unseen_data(excercise: str, unseen_folder:str):
         observations,
         columns=["image_path", "class_0", "class_1", "class_name", "class_no"],
     )
-    df.to_csv("{unseen_folder}_predictions.csv")
+    df.to_csv(f"{excercise}_video_predictions.csv")
     return df
 
 if __name__ == "__main__":
