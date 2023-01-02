@@ -33,7 +33,8 @@ def save_images(images: list, excercise: str, class_name: str):
     class_name: the class the images belong to
 
     """
-    dataset_type = "train" if random.random() < 0.8 else "test"
+    TRAINING_SIZE = .75
+    dataset_type = "train" if random.random() < TRAINING_SIZE else "test"
     for image in images:
         uuid_name = str(uuid.uuid4())
         image_name = f"{uuid_name}.png"

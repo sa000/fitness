@@ -16,6 +16,12 @@ from globals import RESOURCES_ROOT
 from helpers.landmarks import landmarks_to_embedding
 from helpers.plot_utils import create_plot, plot_confusion_matrix
 
+def lr_schedule(epoch):
+    return .001
+#   if epoch < 10:
+#     return 0.001
+#   else:
+#     return 0.001 * np.exp(0.1 * (10 - epoch))
 
 def create_model(class_names: list, num_features: int):
     """
@@ -32,14 +38,16 @@ def create_model(class_names: list, num_features: int):
     inputs = tf.keras.Input(shape=(num_features))
     embedding = landmarks_to_embedding(inputs)
 
-    layer = keras.layers.Dense(128, activation=tf.nn.relu6)(embedding)
+    layer = keras.layers.Dense(1000, activation=tf.nn.relu6)(embedding)
     layer = keras.layers.Dropout(0.5)(layer)
     layer = keras.layers.Dense(64, activation=tf.nn.relu6)(layer)
     layer = keras.layers.Dropout(0.5)(layer)
+
     outputs = keras.layers.Dense(len(class_names), activation="softmax")(layer)
 
     model = keras.Model(inputs, outputs)
     print(model.summary())
+    # define the callback
     model.compile(
         optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"]
     )
@@ -80,6 +88,7 @@ def train_model(
         mode="max",
     )
     earlystopping = keras.callbacks.EarlyStopping(monitor="val_accuracy", patience=20)
+    lr_callback = LearningRateScheduler(lr_schedule)
 
     # Start training
     history = model.fit(
@@ -88,12 +97,12 @@ def train_model(
         epochs=200,
         batch_size=4,
         validation_data=(X_val, y_val),
-        callbacks=[checkpoint, earlystopping],
+        callbacks=[checkpoint, earlystopping,lr_callback],
     )
     return history
 
 
-def predict_on_unseen_data(excercise: str):
+def predict_on_unseen_data(excercise: str, video_file: str):
     """
     Predict on unseen data
 
@@ -106,7 +115,8 @@ def predict_on_unseen_data(excercise: str):
     print('Predicting on unseen data for ', excercise)
     model = keras.models.load_model(f"{RESOURCES_ROOT}/{excercise}/{excercise}_model.h5")
     observations = []
-    unseen_folder = f"images/video_frames/{excercise}"
+    video_label = video_file.strip('.mp4')
+    unseen_folder = f"images/video_frames/{excercise}/{video_label}"
     unseen_images = natsorted(os.listdir(unseen_folder))
     idx = 0
     class_names = ["start", "end"]
@@ -129,7 +139,7 @@ def predict_on_unseen_data(excercise: str):
         observations,
         columns=["image_path", "class_0", "class_1", "class_name", "class_no"],
     )
-    df.to_csv(f"{excercise}_video_predictions.csv")
+    df.to_csv(f"{excercise}_{video_label}_video_predictions.csv")
     return df
 
 if __name__ == "__main__":
@@ -153,7 +163,11 @@ if __name__ == "__main__":
     # Convert the prediction result to class name
     y_pred_label = [class_names[i] for i in np.argmax(y_pred, axis=1)]
     y_true_label = [class_names[i] for i in np.argmax(y_test, axis=1)]
+    
+    incorrect_predictions = np.not_equal(np.argmax(y_pred, axis=1), np.argmax(y_test, axis=1))
 
+    # Finally, we'll get the indexes for the incorrect predictions
+    indexes = np.where(incorrect_predictions)
     # Plotting
     cm = confusion_matrix(np.argmax(y_test, axis=1), np.argmax(y_pred, axis=1))
     create_plot(excercise, history)

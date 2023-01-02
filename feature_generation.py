@@ -9,7 +9,7 @@ from tqdm import tqdm
 from data import BodyPart
 from helpers.helpers import detect
 
-LANDMARK_THRESHOLD = 0.01
+LANDMARK_THRESHOLD = 0.00001
 import globals as g
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)

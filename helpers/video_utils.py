@@ -13,25 +13,26 @@ project_root = os.path.dirname(os.path.dirname(__file__))
 
 def load_video_into_cv2(
     excercise,
+    video_file
 ):
     """
     Load video to cv2 and same 30 frames per second to folder
 
     """
-    video_file =f"{excercise}.mp4"
     print(f'Loading video {video_file} into cv2')
-
+    video_label = video_file.strip('.mp4')
     video_path = os.path.join(project_root,'resources',excercise, video_file)
     video = cv2.VideoCapture(video_path)
     fps = video.get(cv2.CAP_PROP_FPS)
     print('fps',fps)
     count = 0
-    make_folder(os.path.join(project_root, "images", 'video_frames', excercise))
+    make_folder(os.path.join(project_root, "images", 'video_frames', excercise, video_label))
+    make_folder(os.path.join(project_root, "images", 'video_frames', excercise, video_label+ '_labeled'))
     while video.isOpened():
         success, frame = video.read()
         if success:
             print(f'Writing frame {count}')
-            cv2.imwrite(f"{project_root}/images/video_frames/{excercise}/{count}.jpg", frame)
+            cv2.imwrite(f"{project_root}/images/video_frames/{excercise}/{video_label}/{count}.jpg", frame)
             count += 1
         else:
             print('Video ended')
@@ -50,7 +51,7 @@ def generate_predictions_onframes(excercise, video_file="tony_squats.mp4"):
     frames = natsorted(os.listdir(frame_path))
     #load features
 
-def generated_graded_video(excercise: str):
+def generated_graded_video(excercise: str, video_file: str):
     """
     Generates a graded video. Using the predictions, it will grade the video and add a label to each frame
     """
@@ -59,13 +60,14 @@ def generated_graded_video(excercise: str):
     file = font_manager.findfont(font)
     font = ImageFont.truetype(file, 14)
     # make the font smaller
+    video_label = video_file.strip('.mp4')
    
-    frame_path = os.path.join(project_root, "images", 'video_frames', excercise)
-    label_path = os.path.join(project_root, "images", 'video_frames', excercise+'_labeled')
+    frame_path = os.path.join(project_root, "images", 'video_frames', excercise, video_label)
+    label_path = os.path.join(project_root, "images", 'video_frames', excercise,video_label+'_labeled')
     frames = natsorted(os.listdir(frame_path))
 
     # Load predictions
-    predictions = pd.read_csv(f"{excercise}_video_predictions.csv")
+    predictions = pd.read_csv(f"{excercise}_{video_label}_video_predictions.csv")
     # Loop over each frame in the animated image
     index = 0
     start = None
@@ -115,22 +117,24 @@ def generated_graded_video(excercise: str):
         img.save(f"{label_path}/{frame}")
 
 def convert_frames_to_gif(
-    excercise: str, fps: int = 30
+    excercise: str, video_file: str, fps: int = 30
+
 ):
     """
     Convert frames to gif
     """
     import imageio
-    frame_path = os.path.join(project_root, "images", 'video_frames', excercise+'_labeled')
+    video_label = video_file.strip('.mp4')
+    frame_path = os.path.join(project_root, "images", 'video_frames', excercise,video_label+'_labeled')
     # Get the frames and convert them to a gif
     frames = natsorted(os.listdir(frame_path))
     images = []
     for frame in tqdm(frames, desc='Saving gif'):
         images.append(imageio.imread(f"{frame_path}/{frame}"))
-    imageio.mimsave(f"resources/{excercise}/{excercise}_labeled.gif", images, fps=fps)
+    imageio.mimsave(f"resources/{excercise}/{excercise}_{video_label}_labeled.gif", images, fps=fps)
 
 if __name__ == 'main':
-    excercise = "squat"
+    excercise = "kb_situpt"
     #generated_graded_video(excercise)
     load_video_into_cv2(excercise)
     
