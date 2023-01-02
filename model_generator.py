@@ -16,12 +16,6 @@ from globals import RESOURCES_ROOT
 from helpers.landmarks import landmarks_to_embedding
 from helpers.plot_utils import create_plot, plot_confusion_matrix
 
-def lr_schedule(epoch):
-    return .001
-#   if epoch < 10:
-#     return 0.001
-#   else:
-#     return 0.001 * np.exp(0.1 * (10 - epoch))
 
 def create_model(class_names: list, num_features: int):
     """
@@ -88,7 +82,6 @@ def train_model(
         mode="max",
     )
     earlystopping = keras.callbacks.EarlyStopping(monitor="val_accuracy", patience=20)
-    lr_callback = LearningRateScheduler(lr_schedule)
 
     # Start training
     history = model.fit(
@@ -97,7 +90,7 @@ def train_model(
         epochs=200,
         batch_size=4,
         validation_data=(X_val, y_val),
-        callbacks=[checkpoint, earlystopping,lr_callback],
+        callbacks=[checkpoint, earlystopping],
     )
     return history
 
@@ -156,14 +149,16 @@ if __name__ == "__main__":
     print(f"Number of features: {num_features}")
     model = create_model(class_names, num_features)
     history = train_model(X_train, y_train, X_val, y_val)
-    model.save(f"{RESOURCES_ROOT}/{excercise}/{excercise}_model.h5")
+    model.save(f"{RESOURCES_ROOT}/{excercise}/{excercise}_xxx_model.h5")
     # Prediction
     y_pred = model.predict(X_test)
 
     # Convert the prediction result to class name
     y_pred_label = [class_names[i] for i in np.argmax(y_pred, axis=1)]
     y_true_label = [class_names[i] for i in np.argmax(y_test, axis=1)]
-    
+    df = pd.read_csv(f"{RESOURCES_ROOT}/{excercise}/'test_{excercise}.csv")
+    df['pred'] = df[df.class_name != y_pred_label]
+    df.to_csv('incorrect_predictions.csv')
     incorrect_predictions = np.not_equal(np.argmax(y_pred, axis=1), np.argmax(y_test, axis=1))
 
     # Finally, we'll get the indexes for the incorrect predictions

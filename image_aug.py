@@ -3,6 +3,7 @@ import random
 import uuid
 
 import tensorflow as tf
+from tqdm import tqdm
 from tensorflow.keras.utils import (img_to_array, load_img,  # type: ignore
                                     save_img)
 
@@ -35,7 +36,7 @@ def save_images(images: list, excercise: str, class_name: str):
     """
     TRAINING_SIZE = .75
     dataset_type = "train" if random.random() < TRAINING_SIZE else "test"
-    for image in images:
+    for image in tqdm(images, desc = 'Augmenting images'):
         uuid_name = str(uuid.uuid4())
         image_name = f"{uuid_name}.png"
         image_path = os.path.join(
