@@ -36,8 +36,8 @@ def get_columns_to_drop(excercise: str):
     Get the columns to drop from the dataframe. Aim to help model learn faster with only relevant features
     '''
     not_revelant_body_parts = []
-    if excercise=='kb_around_world':
-        not_revelant_body_parts = ['NOSE', 'EYE', 'EAR', 'KNEE', 'ANKLE']
+    if excercise=='kb_around_the_world':
+        not_revelant_body_parts = ['KNEE', 'ANKLE']
     if excercise=='kb_situp':
         not_revelant_body_parts = [ 'KNEE','EYE', 'ANKLE']
     #for each not relevant body part, remove the LEFT, RIGHT and SCORE columns from the BODYPART columns

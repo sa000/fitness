@@ -3,9 +3,9 @@ import random
 import uuid
 
 import tensorflow as tf
-from tqdm import tqdm
 from tensorflow.keras.utils import (img_to_array, load_img,  # type: ignore
                                     save_img)
+from tqdm import tqdm
 
 from globals import POSTAUGMENTATION_PATH, RAW_IMAGES
 

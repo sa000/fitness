@@ -51,6 +51,12 @@ def generate_predictions_onframes(excercise, video_file="tony_squats.mp4"):
     frames = natsorted(os.listdir(frame_path))
     #load features
 
+
+
+def is_new_excercise(excercise: str, current_state: str, prev_state: str):
+    if current_state == "start" and prev_state == "end":
+        return True
+    return False
 def generated_graded_video(excercise: str, video_file: str):
     """
     Generates a graded video. Using the predictions, it will grade the video and add a label to each frame
@@ -94,11 +100,12 @@ def generated_graded_video(excercise: str, video_file: str):
             ].values
         )
         max_prob = float(int(max_prob * 1000)) / 1000
-
-
-        # Increse the excercise count if we are back in the start state
-        if current_state == "start" and prev_state == "end":
-            excercise_count += 1
+        should_increase_rep = is_new_excercise(excercise, current_state, prev_state)
+        if should_increase_rep:
+            if excercise=='kb_around_the_world':
+                excercise_count+=.5
+            else:
+                excercise_count += 1
             print(excercise_count)
         prev_state = current_state
         #write the probablity of the prediction on the image 

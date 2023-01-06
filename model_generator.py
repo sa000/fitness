@@ -34,17 +34,16 @@ def create_model(class_names: list, num_features: int):
 
     layer = keras.layers.Dense(1000, activation=tf.nn.relu6)(embedding)
     layer = keras.layers.Dropout(0.5)(layer)
-    layer = keras.layers.Dense(64, activation=tf.nn.relu6)(layer)
+    layer = keras.layers.Dense(512, activation=tf.nn.relu6)(layer)
     layer = keras.layers.Dropout(0.5)(layer)
-
     outputs = keras.layers.Dense(len(class_names), activation="softmax")(layer)
 
     model = keras.Model(inputs, outputs)
     print(model.summary())
     # define the callback
+    opt = keras.optimizers.Adam(learning_rate=5e-5)
     model.compile(
-        optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"]
-    )
+        optimizer=opt, loss="categorical_crossentropy", metrics=["accuracy"]    )
 
     return model
 
@@ -81,14 +80,14 @@ def train_model(
         save_best_only=True,
         mode="max",
     )
-    earlystopping = keras.callbacks.EarlyStopping(monitor="val_accuracy", patience=20)
+    earlystopping = keras.callbacks.EarlyStopping(monitor="val_accuracy", patience=25)
 
     # Start training
     history = model.fit(
         X_train,
         y_train,
         epochs=200,
-        batch_size=4,
+        batch_size=10,
         validation_data=(X_val, y_val),
         callbacks=[checkpoint, earlystopping],
     )
@@ -139,7 +138,7 @@ if __name__ == "__main__":
     try:
         excercise = sys.argv[1]
     except:
-        excercise = "kb_situp"
+        excercise = "kb_around_the_world"
     class_names = ["start", "end"]
     X, y = split_data("train")
     X_test, y_test = split_data("test")
@@ -149,21 +148,21 @@ if __name__ == "__main__":
     print(f"Number of features: {num_features}")
     model = create_model(class_names, num_features)
     history = train_model(X_train, y_train, X_val, y_val)
-    model.save(f"{RESOURCES_ROOT}/{excercise}/{excercise}_xxx_model.h5")
+    model.save(f"{RESOURCES_ROOT}/{excercise}/{excercise}_model.h5")
     # Prediction
     y_pred = model.predict(X_test)
 
     # Convert the prediction result to class name
     y_pred_label = [class_names[i] for i in np.argmax(y_pred, axis=1)]
     y_true_label = [class_names[i] for i in np.argmax(y_test, axis=1)]
-    df = pd.read_csv(f"{RESOURCES_ROOT}/{excercise}/'test_{excercise}.csv")
-    df['pred'] = df[df.class_name != y_pred_label]
-    df.to_csv('incorrect_predictions.csv')
-    incorrect_predictions = np.not_equal(np.argmax(y_pred, axis=1), np.argmax(y_test, axis=1))
+    # df = pd.read_csv(f"{RESOURCES_ROOT}/{excercise}/test_{excercise}.csv")
+    # df['pred'] = df[df.class_name != y_pred_label]
+    # df.to_csv('incorrect_predictions.csv')
+    # incorrect_predictions = np.not_equal(np.argmax(y_pred, axis=1), np.argmax(y_test, axis=1))
 
-    # Finally, we'll get the indexes for the incorrect predictions
-    indexes = np.where(incorrect_predictions)
-    # Plotting
+    # # Finally, we'll get the indexes for the incorrect predictions
+    # indexes = np.where(incorrect_predictions)
+    # # Plotting
     cm = confusion_matrix(np.argmax(y_test, axis=1), np.argmax(y_pred, axis=1))
     create_plot(excercise, history)
     plot_confusion_matrix(cm, class_names, excercise)
