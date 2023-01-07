@@ -8,7 +8,6 @@ from natsort import natsorted
 from PIL import Image, ImageFont
 from tqdm import tqdm
 
-from initialize_resources import make_folder
 project_root = os.path.dirname(os.path.dirname(__file__))
 
 def load_video_into_cv2(
@@ -26,8 +25,8 @@ def load_video_into_cv2(
     fps = video.get(cv2.CAP_PROP_FPS)
     print('fps',fps)
     count = 0
-    make_folder(os.path.join(project_root, "images", 'video_frames', excercise, video_label))
-    make_folder(os.path.join(project_root, "images", 'video_frames', excercise, video_label+ '_labeled'))
+    # make_folder(os.path.join(project_root, "images", 'video_frames', excercise, video_label))
+    # make_folder(os.path.join(project_root, "images", 'video_frames', excercise, video_label+ '_labeled'))
     while video.isOpened():
         success, frame = video.read()
         if success:

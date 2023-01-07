@@ -1,7 +1,8 @@
 import os
 import random
 import uuid
-from io import BytesIO
+import io
+
 
 import tensorflow as tf
 from tensorflow.keras.utils import (img_to_array, load_img,  # type: ignore
@@ -10,6 +11,7 @@ from tqdm import tqdm
 
 from globals import POSTAUGMENTATION_PATH, RAW_IMAGES, BUCKET_NAME
 import boto3 
+from PIL import Image
 s3_client = boto3.client('s3')
 s3_resource = boto3.resource('s3')
 
@@ -22,6 +24,7 @@ def get_augmented_images(img: tf.Tensor):
     """
     augmented_images = []
     flipped = tf.image.flip_left_right(img_to_array(img))
+    flipped = Image.fromarray(tf.cast(flipped, tf.uint8).numpy())
     augmented_images = augmented_images + [flipped]
     return augmented_images
 
@@ -44,7 +47,15 @@ def save_image_s3(image: tf.Tensor, excercise: str, class_name: str):
     image_path = os.path.join(
         POSTAUGMENTATION_PATH, excercise, dataset_type, class_name, image_name
     )
-    save_img(image_path, image)
+    #put the file into the bucket
+    #s3_resource.Object(BUCKET_NAME, image_path).put(Body=BytesIO(image)
+    buf = io.BytesIO()
+    image.save(buf, format='png')
+    buf.seek(0)
+    s3_client.put_object(Bucket=BUCKET_NAME, Key=image_path, Body=buf)
+    #save_img(f's3://{BUCKET_NAME}/{image_path}', image)
+   
+
 
 
 def perform_augmentation(excercise: str):
@@ -58,12 +69,12 @@ def perform_augmentation(excercise: str):
     for position in ["start", "end"]:
         image_file_path = os.path.join(RAW_IMAGES, excercise, position)
         objects = s3_client.list_objects(Bucket=BUCKET_NAME, Prefix=image_file_path)['Contents']
-        for object in objects[0:2]:
+        for object in tqdm(objects[0:100], desc=f"Augmenting {excercise} {position}"):
             image_path = object['Key']
             if image_path[-1] == "/":
                 continue
             body = s3_resource.Object(BUCKET_NAME, image_path).get()['Body'].read()
-            img = load_img(BytesIO(body))
+            img = load_img(io.BytesIO(body))
             print(f"Augmenting {image_path} for {excercise} {position}")
             augmented_images = get_augmented_images(img)
             for image in [img, *augmented_images]:

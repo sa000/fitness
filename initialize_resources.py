@@ -6,7 +6,8 @@ from globals import POSTAUGMENTATION_PATH, RESOURCES_ROOT, BUCKET_NAME
 import boto3
 
 config = configparser.ConfigParser()
-config.read("config.ini")
+#print current directory
+# config.read("./config.ini")
 s3 = boto3.client("s3")
 
 
@@ -42,10 +43,16 @@ def initialize_excercise_folders_s3(excercise: str):
     for folder in ['plots']:
         s3.put_object(Bucket=BUCKET_NAME, Key=f"resources/{excercise}/{folder}/")
     positions = ['start', 'end']
+    dataset_types = ['train', 'test']
     for folder in ['processed', 'raw']:
         s3.put_object(Bucket=BUCKET_NAME, Key=f"images/{folder}/{excercise}/")
-        for position in positions:
-            s3.put_object(Bucket=BUCKET_NAME, Key=f"images/{folder}/{excercise}/{position}/")
+        if folder == 'raw':
+            continue
+        for dataset_type in dataset_types:
+            s3.put_object(Bucket=BUCKET_NAME, Key=f"images/{folder}/{excercise}/{dataset_type}/")
+            for position in positions:
+                print(folder, dataset_type, position)
+                s3.put_object(Bucket=BUCKET_NAME, Key=f"images/{folder}/{excercise}/{dataset_type}/{position}/")
 
     print(f'Created folders for excercise in s3 for {excercise}')
 def empty_s3_bucket():
@@ -57,53 +64,11 @@ def empty_s3_bucket():
     bucket.objects.all().delete()
     bucket.delete()
 # empty_s3_bucket()
-initialize_s3_resources()
-# initialize_excercise_folders_s3('bicep_curl')
-# def make_resources(excercise: str):
-#     """
-#     Create a folder for the excercise in the resources folder
 
-#     """
-#     resource_folder = os.path.join(RESOURCES_ROOT, excercise)
-#     make_folder(resource_folder)
-#     make_folder(os.path.join(resource_folder, "plots"))
-
-
-#     return
-
-
-# loop through folders in directory
-
-
-# def make_folder(path: str):
-#     """
-#     Create a folder if it doesn't exist
-#     """
-#     if not os.path.exists(path):
-#         print(f"Creating folder for {path}")
-#         os.makedirs(path)
-#     return
-
-
-# def initialize_postaugmentation_folders(excercise: str):
-#     """
-#     For an excercise , create a folder for each dataset type and position if it doesn't exist
-
-#     """
-#     excercise_path = os.path.join(POSTAUGMENTATION_PATH, excercise)
-#     make_folder(excercise_path)
-#     for dataset in ["train", "test"]:
-#         dataset_path = os.path.join(excercise_path, dataset)
-#         make_folder(dataset_path)
-#         for position in ["start", "end"]:
-#             position_path = os.path.join(dataset_path, position)
-#             make_folder(position_path)
-
-
-# if __name__ == "__main__":
-#     try:
-#         excercise = sys.argv[1]
-#     except:
-#         exercise='squat' #default
-#     make_resources(excercise)
-#     initialize_postaugmentation_folders(excercise)
+if __name__ == "__main__":
+    try:
+        excercise = sys.argv[1]
+    except:
+        exercise='kb_around_the_world' #default
+    initialize_s3_resources()
+    initialize_excercise_folders_s3(excercise)

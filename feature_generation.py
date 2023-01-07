@@ -6,7 +6,6 @@ import pandas as pd
 import tensorflow as tf
 from tqdm import tqdm
 from io import BytesIO
-import torch
 from data import BodyPart
 from helpers.helpers import detect
 from tensorflow.keras.utils import img_to_array, load_img, save_img  # type: ignore
@@ -95,7 +94,7 @@ def generate_feature_file(excercise: str):
         objects = s3_client.list_objects(Bucket=BUCKET_NAME, Prefix=path)["Contents"]
         observations, debugging_observations = [], []
         for object in tqdm(
-            objects[0:4], desc=f"Generating features for {excercise} {dataset_type}"
+            objects[0:100], desc=f"Generating features for {excercise} {dataset_type}"
         ):
             if object["Key"][-1] == "/":
                 continue
@@ -110,10 +109,10 @@ def generate_feature_file(excercise: str):
         df = pd.DataFrame(observations, columns=HEADERS)
         # columns_to_drop = get_columns_to_drop(excercise)
         # df.drop(columns=columns_to_drop, inplace=True, axis=1)
-        df.to_csv(
-            f"{g.RESOURCES_ROOT}/{excercise}/{dataset_type}_{excercise}.csv",
-            index=False,
-        )
+        # df.to_csv(
+        #     f"{g.RESOURCES_ROOT}/{excercise}/{dataset_type}_{excercise}.csv",
+        #     index=False,
+        # )
         csv_string = df.to_csv(index=False)
         # write the dataframe to s3
         s3_client.put_object(

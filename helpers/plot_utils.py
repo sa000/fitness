@@ -1,8 +1,12 @@
 from matplotlib import pyplot as plt
-from globals import RESOURCES_ROOT
+from globals import RESOURCES_ROOT, BUCKET_NAME
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 import numpy as np
 import itertools
+import boto3 
+s3_client = boto3.client('s3')
+s3_resource = boto3.resource('s3')
+import io
 
 def create_plot(excercise:str, history: list):
     '''
@@ -19,7 +23,20 @@ def create_plot(excercise:str, history: list):
     plt.legend(['TRAIN', 'VAL'], loc='lower right')
     plt.show()
     #Save the matplot figure
-    plt.savefig(f'{RESOURCES_ROOT}/{excercise}/plots/{excercise}_model_accuracy.png')
+    image_path = f'resources/{excercise}/plots/{excercise}_model_accuracy.png'
+    plt.savefig(f'{excercise}_model_accuracy.png')
+
+    # Create a binary stream in memory
+    buf = io.BytesIO()
+
+    # Save the plot to the stream
+    plt.savefig(buf, format='png')
+
+    # Reset the stream position to the beginning of the stream
+    buf.seek(0)
+
+    # Save the plot to S3
+    s3_client.put_object(Bucket=BUCKET_NAME, Key=image_path, Body=buf)
     plt.close()    
 
 def plot_confusion_matrix(cm: np.ndarray , classes: list, excercise:str,   normalize = False ,cmap=plt.cm.Blues):
@@ -52,6 +69,19 @@ def plot_confusion_matrix(cm: np.ndarray , classes: list, excercise:str,   norma
   plt.ylabel('True label')
   plt.xlabel('Predicted label')
   plt.tight_layout()
-  plt.savefig(f'{RESOURCES_ROOT}/{excercise}/plots/{excercise}_cm.png')
-  plt.close()  
- 
+  plt.show()
+  image_path = f'resources/{excercise}/plots/{excercise}_cm.png'
+  plt.savefig(f'{excercise}_cm.png')
+
+  # Create a binary stream in memory
+  buf = io.BytesIO()
+
+  # Save the plot to the stream
+  plt.savefig(buf, format='png')
+
+  # Reset the stream position to the beginning of the stream
+  buf.seek(0)
+
+  # Save the plot to S3
+  s3_client.put_object(Bucket=BUCKET_NAME, Key=image_path, Body=buf)
+  plt.close()    
