@@ -5,13 +5,20 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from tqdm import tqdm
-
+from io import BytesIO
+import torch
 from data import BodyPart
 from helpers.helpers import detect
+from tensorflow.keras.utils import img_to_array, load_img, save_img  # type: ignore
 
 LANDMARK_THRESHOLD = 0.00001
-import globals as g
+from globals import POSTAUGMENTATION_PATH, RAW_IMAGES, BUCKET_NAME
 
+import globals as g
+import boto3
+
+s3_client = boto3.client("s3")
+s3_resource = boto3.resource("s3")
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 
@@ -31,27 +38,30 @@ def get_headers_for_model() -> list:
 
 
 HEADERS = get_headers_for_model()
+
+
 def get_columns_to_drop(excercise: str):
-    '''
+    """
     Get the columns to drop from the dataframe. Aim to help model learn faster with only relevant features
-    '''
+    """
     not_revelant_body_parts = []
-    if excercise=='kb_around_the_world':
-        not_revelant_body_parts = ['KNEE', 'ANKLE']
-    if excercise=='kb_situp':
-        not_revelant_body_parts = [ 'KNEE','EYE', 'ANKLE']
-    #for each not relevant body part, remove the LEFT, RIGHT and SCORE columns from the BODYPART columns
+    if excercise == "kb_around_the_world":
+        not_revelant_body_parts = ["KNEE", "ANKLE"]
+    if excercise == "kb_situp":
+        not_revelant_body_parts = ["KNEE", "EYE", "ANKLE"]
+    # for each not relevant body part, remove the LEFT, RIGHT and SCORE columns from the BODYPART columns
     columns_to_drop = []
-    for body_part in not_revelant_body_parts:            
-        for column in [body_part+'_x', body_part+'_y', body_part+'_score']:
-            if body_part =='NOSE':
+    for body_part in not_revelant_body_parts:
+        for column in [body_part + "_x", body_part + "_y", body_part + "_score"]:
+            if body_part == "NOSE":
                 columns_to_drop.append(column)
             else:
-                columns_to_drop.append('LEFT_'+column)
-                columns_to_drop.append('RIGHT_'+column)
+                columns_to_drop.append("LEFT_" + column)
+                columns_to_drop.append("RIGHT_" + column)
     return columns_to_drop
 
-def create_feature_image(image, excercise: str):
+
+def create_feature_image(image: np.ndarray):
     """Creates a feature image for a given image.
 
     Args:
@@ -64,68 +74,56 @@ def create_feature_image(image, excercise: str):
         image = image[::3]
     coordinates = get_keypoints(image)
     if coordinates == []:
-        return None
-    df = pd.DataFrame([coordinates], columns=HEADERS[:-2])
-    columns_to_drop = get_columns_to_drop(excercise)
-    df.drop(columns = columns_to_drop, inplace=True, axis=1)
-    #save with a random name
-    return df
+        return []
+    return coordinates
 
-def create_features(excercise: str, dataset_type: str):
-    """Creates a model for a given excercise.
+
+def generate_feature_file(excercise: str):
+    """
+     Generates a csv file with the features for the given excercise.
 
     Args:
         excercise: The excercise to create a model for.
-        dataset_type: The type of dataset t.
-    Returns:
-        A compiled model.
     """
-    print(f"Creating feature set for {excercise} in the {dataset_type} dataset")
-        
-    images_in_train_folder = os.path.join(g.IMAGES_ROOT, excercise, dataset_type)
-    image_folder = os.path.join(g.IMAGES_ROOT, excercise, dataset_type)
-    class_names = os.listdir(image_folder)
 
-    observations = []
-    debugging_observations = []
-    for (class_no, class_name) in enumerate(class_names):
-        class_path = os.path.join(image_folder, class_name)
-        image_files = os.listdir(class_path)
-        target_info = [class_name, class_no]
-        print(f"Processing {class_name} images for {excercise}")
-        for image_file in tqdm(image_files, desc="Processing images"):
-            print(class_name, image_file)
-            image_path = os.path.join(class_path, image_file)
-            image = tf.io.read_file(image_path)
-            image = tf.io.decode_jpeg(image)
-            image_height, image_width, channel = image.shape
-            if channel == 4:
-                image = image[::3]
-            coordinates = get_keypoints(image)
-            if coordinates == []:
+    class_names = ["start", "end"]
+    resource_path = os.path.join(g.RESOURCES_ROOT, excercise)
+    for dataset_type in ["train", "test"]:
+        print(f"Generating feature file for {excercise} {dataset_type} dataset")
+        path = os.path.join(g.POSTAUGMENTATION_PATH, excercise, dataset_type)
+
+        objects = s3_client.list_objects(Bucket=BUCKET_NAME, Prefix=path)["Contents"]
+        observations, debugging_observations = [], []
+        for object in tqdm(
+            objects[0:4], desc=f"Generating features for {excercise} {dataset_type}"
+        ):
+            if object["Key"][-1] == "/":
                 continue
+            _, _, _, dataset_type, class_name, file_path = object["Key"].split("/")
+            class_no = class_names.index(class_name)
+            target_info = [class_name, class_no]
+            body = s3_resource.Object(BUCKET_NAME, object["Key"]).get()["Body"].read()
+            image = tf.image.decode_image(body)
+            coordinates = create_feature_image(image)
             observation = coordinates + target_info
-            debugging_observation = coordinates + target_info + [image_path]
-            debugging_observations.append(debugging_observation)
             observations.append(observation)
-        print(f"Processed {class_name} images for {excercise}")
-    df = pd.DataFrame(observations, columns=HEADERS)
-    debug_df = pd.DataFrame(debugging_observations, columns=HEADERS + ["image_path"])
-    columns_to_drop = get_columns_to_drop(excercise)
-    df.drop(columns = columns_to_drop, inplace=True, axis=1)
-    debug_df.drop(columns = columns_to_drop, inplace=True, axis=1)
-    print(df.shape)
-    #remove the columns_to_drop from the dataframe
-    df.to_csv(
-        f"{g.RESOURCES_ROOT}/{excercise}/{dataset_type}_{excercise}.csv", index=False
-    )
-    if dataset_type == "test":
-        debug_df.to_csv('debugging.csv', index=False)
-    print(f"Created {dataset_type}_{excercise}.csv")
-    return df
+        df = pd.DataFrame(observations, columns=HEADERS)
+        # columns_to_drop = get_columns_to_drop(excercise)
+        # df.drop(columns=columns_to_drop, inplace=True, axis=1)
+        df.to_csv(
+            f"{g.RESOURCES_ROOT}/{excercise}/{dataset_type}_{excercise}.csv",
+            index=False,
+        )
+        csv_string = df.to_csv(index=False)
+        # write the dataframe to s3
+        s3_client.put_object(
+            Bucket=BUCKET_NAME,
+            Key=f"{resource_path}/{dataset_type}_{excercise}.csv",
+            Body=csv_string,
+        )
+        print(f"Saved features for {excercise} {dataset_type} to s3")
 
 
-    
 def get_keypoints(image: np.ndarray) -> list:
     """
     Get the keypoints from the image using movement
@@ -134,18 +132,16 @@ def get_keypoints(image: np.ndarray) -> list:
     """
     person = detect(image)
 
-
-    #Go through each tuple in person.keypoints. if there is a score less than .1, use the RIGHT or LEFT version of the body part
-    #if there is no RIGHT or LEFT version, then skip the image
+    # Go through each tuple in person.keypoints. if there is a score less than .1, use the RIGHT or LEFT version of the body part
+    # if there is no RIGHT or LEFT version, then skip the image
     for keypoint in person.keypoints:
-        x_coord, y_coord, score = keypoint.coordinate.x, keypoint.coordinate.y, keypoint.score
+        x_coord, y_coord, score = (
+            keypoint.coordinate.x,
+            keypoint.coordinate.y,
+            keypoint.score,
+        )
 
     min_landmark_score = min([keypoint.score for keypoint in person.keypoints])
-
-
-
-
-
 
     if min_landmark_score <= LANDMARK_THRESHOLD:
         print(
@@ -165,10 +161,10 @@ def get_keypoints(image: np.ndarray) -> list:
 
 if __name__ == "__main__":
     import sys
+
     try:
         excercise = sys.argv[1]
     except:
-        excercise = "kb_situp"
+        excercise = "kb_around_the_world"
     print(excercise)
-    create_features(excercise, "train")
-    create_features(excercise, "test")
+    generate_feature_file(excercise)

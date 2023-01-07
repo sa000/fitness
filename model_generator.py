@@ -6,16 +6,22 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from natsort import natsorted
+from io import StringIO
+from feature_generation import get_columns_to_drop
 from sklearn.metrics import (accuracy_score, classification_report,
                              confusion_matrix)
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-from feature_generation import create_feature_image, create_features
+from feature_generation import create_feature_image
 from globals import RESOURCES_ROOT
 from helpers.landmarks import landmarks_to_embedding
 from helpers.plot_utils import create_plot, plot_confusion_matrix
 
+from globals import POSTAUGMENTATION_PATH, RAW_IMAGES, BUCKET_NAME
+import boto3 
+s3_client = boto3.client('s3')
+s3_resource = boto3.resource('s3')
 
 def create_model(class_names: list, num_features: int):
     """
@@ -53,8 +59,14 @@ def split_data(dataset_type: str):
     Split the data into X & y data from the feature set csv
     """
     print("Splitting data into X & y")
-    df = pd.read_csv(f"{RESOURCES_ROOT}/{excercise}/{dataset_type}_{excercise}.csv")
-    df.drop(columns=["class_name"], inplace=True)
+    path = os.path.join(RESOURCES_ROOT, excercise, f"{dataset_type}_{excercise}.csv")
+    s3_object = s3_client.get_object(Bucket=BUCKET_NAME, Key=path)
+    csv_string = s3_object['Body'].read().decode('utf-8')
+
+    # Convert the CSV string to a DataFrame
+    df = pd.read_csv(StringIO(csv_string))
+    columns = get_columns_to_drop(excercise)+['class_name']
+    df.drop(columns=columns, inplace=True)
     y = df.pop("class_no")
     y = keras.utils.to_categorical(y)
     X = df.astype("float64")
@@ -66,13 +78,14 @@ def train_model(
     y_train: pd.DataFrame,
     X_val: pd.DataFrame,
     y_val: pd.DataFrame,
+    excercise: str
 ):
     """
     Train the model and save the weights
     """
     # Add a checkpoint callback to store the checkpoint that has the highest
     # validation accuracy.
-    checkpoint_path = "kb_weights.best.hdf5"
+    checkpoint_path = f"{excercise}_weights.best.hdf5"
     checkpoint = keras.callbacks.ModelCheckpoint(
         checkpoint_path,
         monitor="val_accuracy",
@@ -147,22 +160,27 @@ if __name__ == "__main__":
     num_features = X_train.shape[1]
     print(f"Number of features: {num_features}")
     model = create_model(class_names, num_features)
-    history = train_model(X_train, y_train, X_val, y_val)
-    model.save(f"{RESOURCES_ROOT}/{excercise}/{excercise}_model.h5")
+    history = train_model(X_train, y_train, X_val, y_val, excercise)
+    model.save(f"models/{excercise}_model.h5")
+
+    converter = tf.lite.TFLiteConverter.from_keras_model(model)
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    tflite_model = converter.convert()
+
+    with open(f"models/{excercise}_model.tflite", 'wb') as f:
+        f.write(tflite_model)
+
+    #upload the file to s3
+    s3_client.upload_file(f"models/{excercise}_model.h5", BUCKET_NAME, f"models/{excercise}_model.h5")
+    s3_client.upload_file(f"models/{excercise}_model.tflite", BUCKET_NAME, f"models/{excercise}_model.tflite")
+
     # Prediction
     y_pred = model.predict(X_test)
 
     # Convert the prediction result to class name
     y_pred_label = [class_names[i] for i in np.argmax(y_pred, axis=1)]
     y_true_label = [class_names[i] for i in np.argmax(y_test, axis=1)]
-    # df = pd.read_csv(f"{RESOURCES_ROOT}/{excercise}/test_{excercise}.csv")
-    # df['pred'] = df[df.class_name != y_pred_label]
-    # df.to_csv('incorrect_predictions.csv')
-    # incorrect_predictions = np.not_equal(np.argmax(y_pred, axis=1), np.argmax(y_test, axis=1))
 
-    # # Finally, we'll get the indexes for the incorrect predictions
-    # indexes = np.where(incorrect_predictions)
-    # # Plotting
     cm = confusion_matrix(np.argmax(y_test, axis=1), np.argmax(y_pred, axis=1))
     create_plot(excercise, history)
     plot_confusion_matrix(cm, class_names, excercise)
