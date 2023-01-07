@@ -7,6 +7,7 @@ import boto3
 s3_client = boto3.client('s3')
 s3_resource = boto3.resource('s3')
 import io
+import os
 
 def create_plot(excercise:str, history: list):
     '''
@@ -85,3 +86,4 @@ def plot_confusion_matrix(cm: np.ndarray , classes: list, excercise:str,   norma
   # Save the plot to S3
   s3_client.put_object(Bucket=BUCKET_NAME, Key=image_path, Body=buf)
   plt.close()    
+

@@ -94,7 +94,7 @@ def generate_feature_file(excercise: str):
         objects = s3_client.list_objects(Bucket=BUCKET_NAME, Prefix=path)["Contents"]
         observations, debugging_observations = [], []
         for object in tqdm(
-            objects[0:100], desc=f"Generating features for {excercise} {dataset_type}"
+            objects, desc=f"Generating features for {excercise} {dataset_type}"
         ):
             if object["Key"][-1] == "/":
                 continue

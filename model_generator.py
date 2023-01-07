@@ -2,6 +2,8 @@ import os
 import sys
 
 import keras
+from tensorflow.keras.utils import load_img, img_to_array  
+import io 
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -13,7 +15,7 @@ from sklearn.metrics import (accuracy_score, classification_report,
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-from feature_generation import create_feature_image
+from feature_generation import create_feature_image,get_headers_for_model
 from globals import RESOURCES_ROOT
 from helpers.landmarks import landmarks_to_embedding
 from helpers.plot_utils import create_plot, plot_confusion_matrix
@@ -104,6 +106,7 @@ def train_model(
         validation_data=(X_val, y_val),
         callbacks=[checkpoint, earlystopping],
     )
+    
     return history
 
 
@@ -118,20 +121,28 @@ def predict_on_unseen_data(excercise: str, video_file: str):
     """
     # Load the best weights
     print('Predicting on unseen data for ', excercise)
-    model = keras.models.load_model(f"{RESOURCES_ROOT}/{excercise}/{excercise}_model.h5")
+    model = keras.models.load_model(f"models/{excercise}_model.h5")
     observations = []
     video_label = video_file.strip('.mp4')
-    unseen_folder = f"images/video_frames/{excercise}/{video_label}"
-    unseen_images = natsorted(os.listdir(unseen_folder))
+    unseen_folder = f"images/video_frames/{excercise}/{video_label}/unlabeled/"
+    objects = s3_client.list_objects(Bucket=BUCKET_NAME, Prefix=unseen_folder)['Contents']
+    #load the images from s3 bucket
     idx = 0
     class_names = ["start", "end"]
+    columns_to_drop = get_columns_to_drop(excercise)
+    HEADERS = get_headers_for_model()[:-2]
+    indices_to_keep = [i for i, x in enumerate(HEADERS) if x not in columns_to_drop]
 
-    for image_path in tqdm(unseen_images, desc="Predicting on unseen data"):
-        row = []
-        image = tf.io.read_file(f"{unseen_folder}/{image_path}")
-        image = tf.io.decode_jpeg(image)
-        features = create_feature_image(image, excercise)
-        num_features = features.shape[1]
+    for object in tqdm(objects, desc="Predicting on unseen data"):
+        image_path = object['Key']
+        if image_path[-1] == '/':
+            continue
+        body = s3_resource.Object(BUCKET_NAME, image_path).get()['Body'].read()
+        image = tf.io.decode_jpeg(body)
+        features = create_feature_image(image)
+        features = [x for i, x in enumerate(features) if i in indices_to_keep]
+        num_features = len(features)
+
 
         features = np.array(features).reshape(1, num_features)
         prediction = model.predict(features)
@@ -144,7 +155,12 @@ def predict_on_unseen_data(excercise: str, video_file: str):
         observations,
         columns=["image_path", "class_0", "class_1", "class_name", "class_no"],
     )
-    df.to_csv(f"{excercise}_{video_label}_video_predictions.csv")
+    df.to_csv(f"{video_label}.csv")
+    #move file to s3
+    s3_client.upload_file(f"{video_label}.csv",
+     BUCKET_NAME, 
+     f"resources/{excercise}/{video_label}/predictions.csv")
+    os.remove(f"{video_label}.csv")
     return df
 
 if __name__ == "__main__":
@@ -184,3 +200,6 @@ if __name__ == "__main__":
     cm = confusion_matrix(np.argmax(y_test, axis=1), np.argmax(y_pred, axis=1))
     create_plot(excercise, history)
     plot_confusion_matrix(cm, class_names, excercise)
+    os.remove(f'{excercise}_weights.best.hdf5')
+    os.remove(f'{excercise}_cm.png')
+    os.remove(f'{excercise}_model_accuracy.png')
