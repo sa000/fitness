@@ -74,9 +74,6 @@ def empty_s3_bucket():
 # empty_s3_bucket()
 
 if __name__ == "__main__":
-    try:
-        excercise = sys.argv[1]
-    except:
-        exercise = "kb_around_the_world"  # default
+    excercise = sys.argv[1]
     initialize_s3_resources()
     initialize_excercise_folders_s3(excercise)

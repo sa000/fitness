@@ -1,6 +1,5 @@
 import os
 import sys
-
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -9,7 +8,7 @@ from io import BytesIO
 from data import BodyPart
 from helpers.helpers import detect
 from tensorflow.keras.utils import img_to_array, load_img, save_img  # type: ignore
-
+import time
 LANDMARK_THRESHOLD = 0.00001
 from globals import POSTAUGMENTATION_PATH, RAW_IMAGES, BUCKET_NAME
 
@@ -37,7 +36,7 @@ def get_headers_for_model() -> list:
 
 
 HEADERS = get_headers_for_model()
-
+ 
 
 def get_columns_to_drop(excercise: str):
     """
@@ -46,8 +45,11 @@ def get_columns_to_drop(excercise: str):
     not_revelant_body_parts = []
     if excercise == "kb_around_the_world":
         not_revelant_body_parts = ["KNEE", "ANKLE"]
-    if excercise == "kb_situp":
-        not_revelant_body_parts = ["KNEE", "EYE", "ANKLE"]
+    if excercise == "situps":
+        not_revelant_body_parts = ["KNEE", "EYE", "ANKLE", "NOSE"]
+    if excercise == "hammer_curls":
+        not_revelant_body_parts = ["KNEE", "EYE", "ANKLE", "NOSE", "EAR", "KNEE", 'HIP']
+        not_revelant_body_parts =[]
     # for each not relevant body part, remove the LEFT, RIGHT and SCORE columns from the BODYPART columns
     columns_to_drop = []
     for body_part in not_revelant_body_parts:
@@ -57,6 +59,8 @@ def get_columns_to_drop(excercise: str):
             else:
                 columns_to_drop.append("LEFT_" + column)
                 columns_to_drop.append("RIGHT_" + column)
+    print('columns_to_drop', columns_to_drop)
+    time.sleep(5)
     return columns_to_drop
 
 
@@ -87,12 +91,14 @@ def generate_feature_file(excercise: str):
 
     class_names = ["start", "end"]
     resource_path = os.path.join(g.RESOURCES_ROOT, excercise)
+    
     for dataset_type in ["train", "test"]:
         print(f"Generating feature file for {excercise} {dataset_type} dataset")
         path = os.path.join(g.POSTAUGMENTATION_PATH, excercise, dataset_type)
 
         objects = s3_client.list_objects(Bucket=BUCKET_NAME, Prefix=path)["Contents"]
         observations, debugging_observations = [], []
+        file_paths = []
         for object in tqdm(
             objects, desc=f"Generating features for {excercise} {dataset_type}"
         ):
@@ -104,9 +110,19 @@ def generate_feature_file(excercise: str):
             body = s3_resource.Object(BUCKET_NAME, object["Key"]).get()["Body"].read()
             image = tf.image.decode_image(body)
             coordinates = create_feature_image(image)
-            observation = coordinates + target_info
+            observation = coordinates + target_info 
             observations.append(observation)
+            file_paths.append(object['Key'])
         df = pd.DataFrame(observations, columns=HEADERS)
+        test_file_data_df = pd.DataFrame(file_paths, columns=['file_path'])
+        #upload the file to s3
+        csv_string = test_file_data_df.to_csv(index=False)
+        # write the dataframe to s3
+        s3_client.put_object(
+            Bucket=BUCKET_NAME,
+            Key=f"{resource_path}/{dataset_type}_features.csv",
+            Body=csv_string,
+        )
         # columns_to_drop = get_columns_to_drop(excercise)
         # df.drop(columns=columns_to_drop, inplace=True, axis=1)
         # df.to_csv(
@@ -159,11 +175,6 @@ def get_keypoints(image: np.ndarray) -> list:
 
 
 if __name__ == "__main__":
-    import sys
-
-    try:
-        excercise = sys.argv[1]
-    except:
-        excercise = "kb_around_the_world"
+    excercise = sys.argv[1]
     print(excercise)
     generate_feature_file(excercise)

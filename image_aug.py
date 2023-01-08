@@ -2,8 +2,7 @@ import os
 import random
 import uuid
 import io
-
-
+import sys
 import tensorflow as tf
 from tensorflow.keras.utils import img_to_array, load_img, save_img  # type: ignore
 from tqdm import tqdm
@@ -83,10 +82,5 @@ def perform_augmentation(excercise: str):
 
 
 if __name__ == "__main__":
-    import sys
-
-    try:
-        excercise = "kb_around_the_world"
-    except:
-        raise Exception("Please provide an excercise name")
+    excercise = sys.argv[1]
     perform_augmentation(excercise)

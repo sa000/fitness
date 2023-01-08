@@ -2,28 +2,29 @@ import os
 import sys
 
 import keras
-from tensorflow.keras.utils import load_img, img_to_array  
-import io 
+from tensorflow.keras.utils import load_img, img_to_array
+import io
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 from natsort import natsorted
 from io import StringIO
 from feature_generation import get_columns_to_drop
-from sklearn.metrics import (accuracy_score, classification_report,
-                             confusion_matrix)
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-from feature_generation import create_feature_image,get_headers_for_model
+from feature_generation import create_feature_image, get_headers_for_model
 from globals import RESOURCES_ROOT
 from helpers.landmarks import landmarks_to_embedding
 from helpers.plot_utils import create_plot, plot_confusion_matrix
 
 from globals import POSTAUGMENTATION_PATH, RAW_IMAGES, BUCKET_NAME
-import boto3 
-s3_client = boto3.client('s3')
-s3_resource = boto3.resource('s3')
+import boto3
+
+s3_client = boto3.client("s3")
+s3_resource = boto3.resource("s3")
+
 
 def create_model(class_names: list, num_features: int):
     """
@@ -50,24 +51,23 @@ def create_model(class_names: list, num_features: int):
     print(model.summary())
     # define the callback
     opt = keras.optimizers.Adam(learning_rate=5e-5)
-    model.compile(
-        optimizer=opt, loss="categorical_crossentropy", metrics=["accuracy"]    )
+    model.compile(optimizer=opt, loss="categorical_crossentropy", metrics=["accuracy"])
 
     return model
 
 
-def split_data(dataset_type: str):
+def split_data(excercise: str, dataset_type: str):
     """
     Split the data into X & y data from the feature set csv
     """
     print("Splitting data into X & y")
     path = os.path.join(RESOURCES_ROOT, excercise, f"{dataset_type}_{excercise}.csv")
     s3_object = s3_client.get_object(Bucket=BUCKET_NAME, Key=path)
-    csv_string = s3_object['Body'].read().decode('utf-8')
+    csv_string = s3_object["Body"].read().decode("utf-8")
 
     # Convert the CSV string to a DataFrame
     df = pd.read_csv(StringIO(csv_string))
-    columns = get_columns_to_drop(excercise)+['class_name']
+    columns = get_columns_to_drop(excercise) + ["class_name"] 
     df.drop(columns=columns, inplace=True)
     y = df.pop("class_no")
     y = keras.utils.to_categorical(y)
@@ -80,7 +80,7 @@ def train_model(
     y_train: pd.DataFrame,
     X_val: pd.DataFrame,
     y_val: pd.DataFrame,
-    excercise: str
+    excercise: str,
 ):
     """
     Train the model and save the weights
@@ -106,7 +106,7 @@ def train_model(
         validation_data=(X_val, y_val),
         callbacks=[checkpoint, earlystopping],
     )
-    
+
     return history
 
 
@@ -120,13 +120,36 @@ def predict_on_unseen_data(excercise: str, video_file: str):
 
     """
     # Load the best weights
-    print('Predicting on unseen data for ', excercise)
+    print("Predicting on unseen data for ", excercise)
     model = keras.models.load_model(f"models/{excercise}_model.h5")
     observations = []
-    video_label = video_file.strip('.mp4')
+    video_label = video_file.strip(".mp4")
     unseen_folder = f"images/video_frames/{excercise}/{video_label}/unlabeled/"
-    objects = s3_client.list_objects(Bucket=BUCKET_NAME, Prefix=unseen_folder)['Contents']
-    #load the images from s3 bucket
+    # Set the marker to None
+    marker = ''
+
+    # Set the max keys to None to retrieve all objects
+    max_keys = None
+
+    # Initialize an empty list to store the objects
+    objects = []
+
+    # Loop until there are no more objects to retrieve
+    while True:
+        # Retrieve a batch of objects
+        response = s3_client.list_objects(Bucket=BUCKET_NAME, Prefix=unseen_folder, Marker = marker)
+
+        # Add the objects to the list
+        objects.extend(response['Contents'])
+
+        # Set the marker to the last object in the batch
+        marker = response['Contents'][-1]['Key']
+
+        # If there are no more objects to retrieve, exit the loop
+        if not response['IsTruncated']:
+            break
+
+    # load the images from s3 bucket
     idx = 0
     class_names = ["start", "end"]
     columns_to_drop = get_columns_to_drop(excercise)
@@ -134,15 +157,14 @@ def predict_on_unseen_data(excercise: str, video_file: str):
     indices_to_keep = [i for i, x in enumerate(HEADERS) if x not in columns_to_drop]
 
     for object in tqdm(objects, desc="Predicting on unseen data"):
-        image_path = object['Key']
-        if image_path[-1] == '/':
+        image_path = object["Key"]
+        if image_path[-1] == "/":
             continue
-        body = s3_resource.Object(BUCKET_NAME, image_path).get()['Body'].read()
+        body = s3_resource.Object(BUCKET_NAME, image_path).get()["Body"].read()
         image = tf.io.decode_jpeg(body)
         features = create_feature_image(image)
         features = [x for i, x in enumerate(features) if i in indices_to_keep]
         num_features = len(features)
-
 
         features = np.array(features).reshape(1, num_features)
         prediction = model.predict(features)
@@ -150,27 +172,27 @@ def predict_on_unseen_data(excercise: str, video_file: str):
         class_name = class_names[class_no]
         row = [image_path, prediction[0][0], prediction[0][1], class_name, class_no]
         observations.append(row)
-        print (f"Predicted class: {class_name} ")
+        print(f"Predicted class: {class_name} ")
     df = pd.DataFrame(
         observations,
         columns=["image_path", "class_0", "class_1", "class_name", "class_no"],
     )
     df.to_csv(f"{video_label}.csv")
-    #move file to s3
-    s3_client.upload_file(f"{video_label}.csv",
-     BUCKET_NAME, 
-     f"resources/{excercise}/{video_label}/predictions.csv")
+    # move file to s3
+    s3_client.upload_file(
+        f"{video_label}.csv",
+        BUCKET_NAME,
+        f"resources/{excercise}/{video_label}/predictions.csv",
+    )
     os.remove(f"{video_label}.csv")
     return df
 
+
 if __name__ == "__main__":
-    try:
-        excercise = sys.argv[1]
-    except:
-        excercise = "kb_around_the_world"
+    excercise = sys.argv[1]
     class_names = ["start", "end"]
-    X, y = split_data("train")
-    X_test, y_test = split_data("test")
+    X, y = split_data(excercise, "train")
+    X_test, y_test = split_data(excercise, "test")
 
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.15)
     num_features = X_train.shape[1]
@@ -183,12 +205,18 @@ if __name__ == "__main__":
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
     tflite_model = converter.convert()
 
-    with open(f"models/{excercise}_model.tflite", 'wb') as f:
+    with open(f"models/{excercise}_model.tflite", "wb") as f:
         f.write(tflite_model)
 
-    #upload the file to s3
-    s3_client.upload_file(f"models/{excercise}_model.h5", BUCKET_NAME, f"models/{excercise}_model.h5")
-    s3_client.upload_file(f"models/{excercise}_model.tflite", BUCKET_NAME, f"models/{excercise}_model.tflite")
+    # upload the file to s3
+    s3_client.upload_file(
+        f"models/{excercise}_model.h5", BUCKET_NAME, f"models/{excercise}_model.h5"
+    )
+    s3_client.upload_file(
+        f"models/{excercise}_model.tflite",
+        BUCKET_NAME,
+        f"models/{excercise}_model.tflite",
+    )
 
     # Prediction
     y_pred = model.predict(X_test)
@@ -197,9 +225,28 @@ if __name__ == "__main__":
     y_pred_label = [class_names[i] for i in np.argmax(y_pred, axis=1)]
     y_true_label = [class_names[i] for i in np.argmax(y_test, axis=1)]
 
+
+    #read the test file path from s3
+    test_file_path = f"resources/{excercise}/test_features.csv"
+    body = s3_resource.Object(BUCKET_NAME, test_file_path).get()["Body"].read()
+    test_df = pd.read_csv(io.BytesIO(body))
+    test_df["class_name"] = y_true_label
+    test_df["predicted_class_name"] = y_pred_label
+    test_df['correct'] = test_df['class_name'] == test_df['predicted_class_name']
+    #sort values by those that were in correct
+    test_df = test_df.sort_values(by=['correct'], ascending=False)
+    #save the file to s3
+    test_df.to_csv(f"{excercise}_test.csv")
+    s3_client.upload_file(
+        f"{excercise}_test.csv",
+        BUCKET_NAME,
+        f"resources/{excercise}/test_with_predictions.csv",
+    )
+
+
     cm = confusion_matrix(np.argmax(y_test, axis=1), np.argmax(y_pred, axis=1))
     create_plot(excercise, history)
     plot_confusion_matrix(cm, class_names, excercise)
-    os.remove(f'{excercise}_weights.best.hdf5')
-    os.remove(f'{excercise}_cm.png')
-    os.remove(f'{excercise}_model_accuracy.png')
+    os.remove(f"{excercise}_weights.best.hdf5")
+    os.remove(f"{excercise}_cm.png")
+    os.remove(f"{excercise}_model_accuracy.png")

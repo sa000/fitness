@@ -1,5 +1,5 @@
 import os
-
+import sys
 import cv2
 import numpy as np
 import pandas as pd
@@ -13,6 +13,7 @@ import boto3
 from globals import BUCKET_NAME
 from io import BytesIO
 import awswrangler as wr
+import pygifsicle
 
 s3_client = boto3.client("s3")
 s3_resource = boto3.resource("s3")
@@ -26,7 +27,7 @@ def load_video_into_cv2(excercise, video_file):
     """
     print(f"Loading video {video_file} into cv2")
     video_label = video_file.strip(".mp4")
-    video_path = os.path.join("resources", excercise, video_file)
+    video_path = os.path.join("videos", video_file)
     s3_client.download_file(BUCKET_NAME, video_path, video_file)
     video = cv2.VideoCapture(video_file)
     fps = video.get(cv2.CAP_PROP_FPS)
@@ -77,8 +78,29 @@ def generated_graded_video(excercise: str, video_file: str):
     label_path = os.path.join(
         "images", "video_frames", excercise, video_label, "labeled"
     )
+    # Set the marker to None
+    marker = ''
 
-    objects = s3_client.list_objects(Bucket=BUCKET_NAME, Prefix=frame_path)["Contents"]
+    # Set the max keys to None to retrieve all objects
+    max_keys = None
+
+    # Initialize an empty list to store the objects
+    objects = []
+
+    # Loop until there are no more objects to retrieve
+    while True:
+        # Retrieve a batch of objects
+        response = s3_client.list_objects(Bucket=BUCKET_NAME, Prefix=frame_path, Marker = marker)
+
+        # Add the objects to the list
+        objects.extend(response['Contents'])
+
+        # Set the marker to the last object in the batch
+        marker = response['Contents'][-1]['Key']
+
+        # If there are no more objects to retrieve, exit the loop
+        if not response['IsTruncated']:
+            break
 
     # frames = natsorted(os.listdir(frame_path))
 
@@ -102,7 +124,8 @@ def generated_graded_video(excercise: str, video_file: str):
         sorted(objects, key=lambda x: int(x["Key"].split("/")[-1].strip(".jpg"))),
         desc="Processing Frame",
     ):
-        if object["Key"] == "/":
+
+        if object["Key"][-1] == "/":
             continue
         frame_path = object["Key"]
         print(frame_path)
@@ -165,8 +188,29 @@ def convert_frames_to_gif(excercise: str, video_file: str, fps: int = 30):
         "images", "video_frames", excercise, video_label, "labeled"
     )
     # Get the frames and convert them to a gif
-    objects = s3_client.list_objects(Bucket=BUCKET_NAME, Prefix=label_path)["Contents"]
+    # Set the marker to None
+    marker = ''
 
+    # Set the max keys to None to retrieve all objects
+    max_keys = None
+
+    # Initialize an empty list to store the objects
+    objects = []
+
+    # Loop until there are no more objects to retrieve
+    while True:
+        # Retrieve a batch of objects
+        response = s3_client.list_objects(Bucket=BUCKET_NAME, Prefix=label_path, Marker = marker)
+
+        # Add the objects to the list
+        objects.extend(response['Contents'])
+
+        # Set the marker to the last object in the batch
+        marker = response['Contents'][-1]['Key']
+
+        # If there are no more objects to retrieve, exit the loop
+        if not response['IsTruncated']:
+            break
     images = []
     for object in tqdm(
         sorted(objects, key=lambda x: int(x["Key"].split("/")[-1].strip(".jpg"))),
@@ -179,18 +223,25 @@ def convert_frames_to_gif(excercise: str, video_file: str, fps: int = 30):
         img = load_img(io.BytesIO(body))
         images.append(img)
     imageio.mimsave(f"{video_label}_labeled.gif", images, fps=fps)
+    pygifsicle.optimize(f"{video_label}_labeled.gif", f"{video_label}_labeled.gif")
     # supload
     s3_client.upload_file(
         f"{video_label}_labeled.gif",
         BUCKET_NAME,
         f"images/video_frames/{excercise}/{video_label}/labeled.gif",
     )
+    #
+    s3_client.upload_file(
+        f"{video_label}_labeled.gif",
+        BUCKET_NAME,
+        f"gifs/{excercise}_{video_label}_labeled.gif",
+    )
     os.remove(f"{video_label}_labeled.gif")
 
 
 if __name__ == "main":
-    excercise = "kb_around_the_world"
-    video_file = "kb_around_the_world_v2"
+    excercise = sys.argv[1]
+    video_file = sys.arv[2]
     load_video_into_cv2(excercise, video_file)
 
     # generated_graded_video(excercise,video_file)
