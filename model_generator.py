@@ -4,6 +4,8 @@ import sys
 import keras
 from tensorflow.keras.utils import load_img, img_to_array
 import io
+from sklearn.model_selection import train_test_split
+
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -21,10 +23,11 @@ from helpers.plot_utils import create_plot, plot_confusion_matrix
 
 from globals import POSTAUGMENTATION_PATH, RAW_IMAGES, BUCKET_NAME
 import boto3
+from boto3.dynamodb.conditions import Key, Attr
 
 s3_client = boto3.client("s3")
 s3_resource = boto3.resource("s3")
-
+dynamodb = boto3.resource("dynamodb")
 
 def create_model(class_names: list, num_features: int):
     """
@@ -55,20 +58,26 @@ def create_model(class_names: list, num_features: int):
 
     return model
 
+feature_store = dynamodb.Table("feature_store")
 
-def split_data(excercise: str, dataset_type: str):
+def split_data(excercise: str):
     """
     Split the data into X & y data from the feature set csv
     """
     print("Splitting data into X & y")
-    path = os.path.join(RESOURCES_ROOT, excercise, f"{dataset_type}_{excercise}.csv")
-    s3_object = s3_client.get_object(Bucket=BUCKET_NAME, Key=path)
-    csv_string = s3_object["Body"].read().decode("utf-8")
-
-    # Convert the CSV string to a DataFrame
-    df = pd.read_csv(StringIO(csv_string))
+    resp = feature_store.scan(FilterExpression=Attr("excercise").eq(excercise))
+   
+    df = pd.DataFrame(resp['Items'])
+    df.drop(columns=['filename', 'excercise'], axis=1, inplace=True)
     columns = get_columns_to_drop(excercise) + ["class_name"] 
     df.drop(columns=columns, inplace=True)
+
+    # path = os.path.join(RESOURCES_ROOT, excercise, f"{dataset_type}_{excercise}.csv")
+    # s3_object = s3_client.get_object(Bucket=BUCKET_NAME, Key=path)
+    # csv_string = s3_object["Body"].read().decode("utf-8")
+# 
+    # Convert the CSV string to a DataFrame
+    # df = pd.read_csv(StringIO(csv_string))
     y = df.pop("class_no")
     y = keras.utils.to_categorical(y)
     X = df.astype("float64")
@@ -189,12 +198,13 @@ def predict_on_unseen_data(excercise: str, video_file: str):
 
 
 if __name__ == "__main__":
-    excercise = sys.argv[1]
+    excercise = 'squat'
     class_names = ["start", "end"]
-    X, y = split_data(excercise, "train")
-    X_test, y_test = split_data(excercise, "test")
+    X, y = split_data(excercise)
 
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.15)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.15)
     num_features = X_train.shape[1]
     print(f"Number of features: {num_features}")
     model = create_model(class_names, num_features)
