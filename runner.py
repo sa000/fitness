@@ -5,7 +5,6 @@ from helpers.video_utils import (
     generated_graded_video,
     load_video_into_cv2,
 )
-from model_generator import predict_on_unseen_data
 
 excercise = "squat"
 
