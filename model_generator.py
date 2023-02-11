@@ -210,6 +210,9 @@ if __name__ == "__main__":
     model = create_model(class_names, num_features)
     history = train_model(X_train, y_train, X_val, y_val, excercise)
     model.save(f"models/{excercise}_model.h5")
+    model_json = model.to_json()
+    with open(f"models/{excercise}_model.json", "w") as json_file:
+        json_file.write(model_json)
 
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
@@ -227,6 +230,12 @@ if __name__ == "__main__":
         BUCKET_NAME,
         f"models/{excercise}_model.tflite",
     )
+    s3_client.upload_file(
+        f"models/{excercise}_model.json", 
+        BUCKET_NAME, 
+        f"models/{excercise}_model.json"
+    )
+
 
     # Prediction
     y_pred = model.predict(X_test)
