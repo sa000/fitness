@@ -245,27 +245,27 @@ if __name__ == "__main__":
     y_true_label = [class_names[i] for i in np.argmax(y_test, axis=1)]
 
 
-    #read the test file path from s3
-    test_file_path = f"resources/{excercise}/test_features.csv"
-    body = s3_resource.Object(BUCKET_NAME, test_file_path).get()["Body"].read()
-    test_df = pd.read_csv(io.BytesIO(body))
-    test_df["class_name"] = y_true_label
-    test_df["predicted_class_name"] = y_pred_label
-    test_df['correct'] = test_df['class_name'] == test_df['predicted_class_name']
-    #sort values by those that were in correct
-    test_df = test_df.sort_values(by=['correct'], ascending=False)
-    #save the file to s3
-    test_df.to_csv(f"{excercise}_test.csv")
-    s3_client.upload_file(
-        f"{excercise}_test.csv",
-        BUCKET_NAME,
-        f"resources/{excercise}/test_with_predictions.csv",
-    )
+    # #read the test file path from s3
+    # test_file_path = f"resources/{excercise}/test_features.csv"
+    # body = s3_resource.Object(BUCKET_NAME, test_file_path).get()["Body"].read()
+    # test_df = pd.read_csv(io.BytesIO(body))
+    # test_df["class_name"] = y_true_label
+    # test_df["predicted_class_name"] = y_pred_label
+    # test_df['correct'] = test_df['class_name'] == test_df['predicted_class_name']
+    # #sort values by those that were in correct
+    # test_df = test_df.sort_values(by=['correct'], ascending=False)
+    # #save the file to s3
+    # test_df.to_csv(f"{excercise}_test.csv")
+    # s3_client.upload_file(
+    #     f"{excercise}_test.csv",
+    #     BUCKET_NAME,
+    #     f"resources/{excercise}/test_with_predictions.csv",
+    # )
 
 
-    cm = confusion_matrix(np.argmax(y_test, axis=1), np.argmax(y_pred, axis=1))
-    create_plot(excercise, history)
-    plot_confusion_matrix(cm, class_names, excercise)
-    os.remove(f"{excercise}_weights.best.hdf5")
-    os.remove(f"{excercise}_cm.png")
-    os.remove(f"{excercise}_model_accuracy.png")
+    # cm = confusion_matrix(np.argmax(y_test, axis=1), np.argmax(y_pred, axis=1))
+    # create_plot(excercise, history)
+    # plot_confusion_matrix(cm, class_names, excercise)
+    # os.remove(f"{excercise}_weights.best.hdf5")
+    # os.remove(f"{excercise}_cm.png")
+    # os.remove(f"{excercise}_model_accuracy.png")
