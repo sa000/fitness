@@ -20,6 +20,7 @@ from feature_generation import create_feature_image, get_headers_for_model
 from globals import RESOURCES_ROOT
 from helpers.landmarks import landmarks_to_embedding
 from helpers.plot_utils import create_plot, plot_confusion_matrix
+import tensorflowjs as tfjs
 
 from globals import POSTAUGMENTATION_PATH, RAW_IMAGES, BUCKET_NAME
 import boto3
@@ -43,14 +44,21 @@ def create_model(class_names: list, num_features: int):
     """
     inputs = tf.keras.Input(shape=(num_features))
     embedding = landmarks_to_embedding(inputs)
+    model = tf.keras.Sequential()
+    model.add(tf.keras.layers.InputLayer(input_shape=(num_features,)))
+    model.add(tf.keras.layers.Dense(1000, activation=tf.nn.relu6))
+    model.add(tf.keras.layers.Dropout(0.5))
+    model.add(tf.keras.layers.Dense(512, activation=tf.nn.relu6))
+    model.add(tf.keras.layers.Dropout(0.5))
+    model.add(tf.keras.layers.Dense(len(class_names), activation="softmax"))
 
-    layer = keras.layers.Dense(1000, activation=tf.nn.relu6)(embedding)
-    layer = keras.layers.Dropout(0.5)(layer)
-    layer = keras.layers.Dense(512, activation=tf.nn.relu6)(layer)
-    layer = keras.layers.Dropout(0.5)(layer)
-    outputs = keras.layers.Dense(len(class_names), activation="softmax")(layer)
+    # layer = keras.layers.Dense(1000, activation=tf.nn.relu6)(embedding)
+    # layer = keras.layers.Dropout(0.5)(layer)
+    # layer = keras.layers.Dense(512, activation=tf.nn.relu6)(layer)
+    # layer = keras.layers.Dropout(0.5)(layer)
+    # outputs = keras.layers.Dense(len(class_names), activation="softmax")(layer)
 
-    model = keras.Model(inputs, outputs)
+    # model = keras.Model(inputs, outputs)
     print(model.summary())
     # define the callback
     opt = keras.optimizers.Adam(learning_rate=5e-5)
@@ -213,6 +221,7 @@ if __name__ == "__main__":
     model_json = model.to_json()
     with open(f"models/{excercise}_model.json", "w") as json_file:
         json_file.write(model_json)
+    tfjs.converters.save_keras_model(model, f'models/{excercise}_model_converted')
 
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
@@ -224,6 +233,12 @@ if __name__ == "__main__":
     # upload the file to s3
     s3_client.upload_file(
         f"models/{excercise}_model.h5", BUCKET_NAME, f"models/{excercise}_model.h5"
+    )
+    s3_client.upload_file(
+        f"models/{excercise}_model_converted/group1-shard1of1.bin", BUCKET_NAME, f"models/{excercise}_model_converted/group1-shard1of1.bin"
+    )
+    s3_client.upload_file(
+        f"models/{excercise}_model_converted/model.json", BUCKET_NAME, f"models/{excercise}_model_converted/model.json"
     )
     s3_client.upload_file(
         f"models/{excercise}_model.tflite",
