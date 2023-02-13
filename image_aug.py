@@ -82,5 +82,5 @@ def perform_augmentation(excercise: str):
 
 
 if __name__ == "__main__":
-    excercise = sys.argv[1]
+    excercise = 'squat'
     perform_augmentation(excercise)

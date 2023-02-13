@@ -175,6 +175,6 @@ def get_keypoints(image: np.ndarray) -> list:
 
 
 if __name__ == "__main__":
-    excercise = sys.argv[1]
+    excercise = 'squat'
     print(excercise)
     generate_feature_file(excercise)
